@@ -82,7 +82,10 @@ echo $? > "$OUT/gamedata-vtables.rc"
 rm -f "$OUT/server_srv.so"
 
 echo ">> running $GAME_DIR on $MAP (timeout ${TIMEOUT}s)"
-docker run --rm --name "sp-harness-$GAME-$$" \
+# seccomp=unconfined: Docker's built-in seccomp profile (at least 29.4) refuses socketcall(2)
+# with ENOSYS, and 32-bit glibc and srcds create every socket through it, so the server can't
+# open its port ("NET_OpenSocket: socket failed: Function not implemented").
+docker run --rm --name "sp-harness-$GAME-$$" --security-opt seccomp=unconfined \
     -v "$OUT/sp:/sp:ro" -v "$OUT:/out" \
     -e GAME_DIR="$GAME_DIR" -e MAP="$MAP" -e TIMEOUT="$TIMEOUT" -e OWNER="$(id -u):$(id -g)" \
     --entrypoint bash "$IMAGE" -c '
