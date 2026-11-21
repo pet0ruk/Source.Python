@@ -59,8 +59,9 @@ jobs:
 
       # Compiler cache (~30 MB per game): a cold 4-core build takes ~3.5 min, a warm one
       # ~30 s. Keyed per game. Later runs of the same PR reuse their own cache; a manual run on
-      # main saves caches that every PR can then restore.
-      - uses: actions/cache@v6 # v6.1.0
+      # main saves caches that every PR can then restore. Saved after the build even when the
+      # tests fail (actions/cache alone only saves on success).
+      - uses: actions/cache/restore@v6 # v6.1.0
         with:
           path: ${{ runner.temp }}/ccache
           key: ccache-${{ matrix.game }}-${{ github.sha }}
@@ -68,6 +69,11 @@ jobs:
 
       - name: Build Source.Python (${{ matrix.game }})
         run: docker/build/build.sh "$GAME" "$OUT/build"
+
+      - uses: actions/cache/save@v6 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/ccache
+          key: ccache-${{ matrix.game }}-${{ github.sha }}
 
       - uses: docker/login-action@v4 # v4.8.0
         with:
