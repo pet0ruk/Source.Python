@@ -3,30 +3,35 @@
     "app_id": 232250,
     "version_app_id": 440,
     "game_dir": "tf",
+    "sp_engine": "orangebox",
     "map": "ctf_2fort"
   },
   "css": {
     "app_id": 232330,
     "version_app_id": 240,
     "game_dir": "cstrike",
+    "sp_engine": "orangebox",
     "map": "de_dust2"
   },
   "dods": {
     "app_id": 232290,
     "version_app_id": 300,
     "game_dir": "dod",
+    "sp_engine": "orangebox",
     "map": "dod_avalanche"
   },
   "hl2dm": {
     "app_id": 232370,
     "version_app_id": 320,
     "game_dir": "hl2mp",
+    "sp_engine": "orangebox",
     "map": "dm_lockdown"
   },
   "l4d2": {
     "app_id": 222860,
     "version_app_id": 550,
     "game_dir": "left4dead2",
+    "sp_engine": "l4d2",
     "map": "c1m1_hotel",
     "windows_first": true,
     "notes": "Fresh Linux installs fail with 'Invalid platform' unless installed as Windows first."

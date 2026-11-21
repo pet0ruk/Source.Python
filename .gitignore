@@ -54,3 +54,6 @@ addons/source-python/docs/plugins/
 
 # Linux temp files
 *~
+
+# docker/harness/run.sh default output
+/sp-harness-out/
