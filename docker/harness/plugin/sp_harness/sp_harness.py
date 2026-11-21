@@ -69,6 +69,11 @@ GAMES = {
         'bots': ['bot_add_t', 'bot_add_ct', 'bot_add_t'],
         'server_only_class': 'info_player_terrorist',
     },
+    'csgo': {
+        'setup': ['bot_join_after_player 0', 'bot_quota_mode normal', 'mp_autoteambalance 0'],
+        'bots': ['bot_add_t', 'bot_add_ct', 'bot_add_t'],
+        'server_only_class': 'info_player_terrorist',
+    },
     'dod': {
         'setup': ['sv_cheats 1'],                  # 'bot' is a cheat command
         'bots': ['bot', 'bot', 'bot'],
@@ -383,10 +388,20 @@ def check_gamedata_symbols():
     return f'{found} symbols resolved'
 
 
+def _server_symbol(symbol):
+    """Address of a symbol in the server binary, found the way the gamedata says (srv_check).
+    CS:GO's Linux server binary is stripped, so symbol checks are skipped there."""
+    from memory import find_binary
+    data = GameConfigObj(SP_DATA_PATH / 'entities' / 'CBaseEntity.ini')
+    srv_check = str(data.get('srv_check', 'True')).lower() != 'false'
+    if SOURCE_ENGINE == 'csgo':
+        raise Skip('the server binary is stripped (no symbols)')
+    return find_binary('server', srv_check)[symbol]
+
+
 def check_make_function():
-    from memory import Convention, DataType, find_binary
-    server = find_binary('server')
-    function = server['_ZN11CBaseEntity8TeleportEPK6VectorPK6QAngleS2_'].make_function(
+    from memory import Convention, DataType
+    function = _server_symbol('_ZN11CBaseEntity8TeleportEPK6VectorPK6QAngleS2_').make_function(
         Convention.THISCALL, (DataType.POINTER, DataType.POINTER, DataType.POINTER,
                               DataType.POINTER), DataType.VOID)
     expect(function.address, 'no address')
@@ -395,14 +410,13 @@ def check_make_function():
 def check_vtable_pointer():
     """An entity's vtable read through Pointer is the binary's vtable, and the gamedata
     'teleport' slot in it holds CBaseEntity::Teleport (worldspawn doesn't override it)."""
-    from memory import find_binary
-    server = find_binary('server')
+    world = _server_symbol('_ZTV6CWorld')
     vtable = Entity(0).pointer.get_pointer()
-    expect(vtable.address == server['_ZTV6CWorld'].address + 8,   # skip offset-to-top, RTTI
+    expect(vtable.address == world.address + 8,   # skip offset-to-top, RTTI
            'worldspawn vtable is not _ZTV6CWorld')
     data = GameConfigObj(SP_DATA_PATH / 'entities' / 'CBaseEntity.ini')
     slot = int(data['virtual_function']['teleport']['offset_linux'])
-    teleport = server['_ZN11CBaseEntity8TeleportEPK6VectorPK6QAngleS2_'].address
+    teleport = _server_symbol('_ZN11CBaseEntity8TeleportEPK6VectorPK6QAngleS2_').address
     expect(vtable.get_pointer(4 * slot).address == teleport,
            f'slot {slot} is not CBaseEntity::Teleport')
     return f'teleport slot {slot}'
