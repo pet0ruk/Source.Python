@@ -1,0 +1,144 @@
+# Builds minimal Source dedicated server images for testing (server from steamcmd, one map),
+# pushed to ghcr.io/<owner>/srcds as <game> (moving) and <game>-<UTC stamp>. After a push, the
+# previous image of that game (left with only its dated tag) is deleted from the package.
+# Per-game settings live in docker/srcds/games.json; docker/srcds/plan.sh decides what to build
+# by comparing Steam's required version with the steam.required_version label on :<game>.
+name: srcds test images
+
+on:
+  schedule:
+    - cron: '17 */3 * * *'   # every 3 hours; only outdated images are rebuilt
+  workflow_dispatch:
+    inputs:
+      game:
+        description: Game to build
+        required: true
+        type: choice
+        default: all
+        options: [all, tf2, css, dods, hl2dm, l4d2]
+      force:
+        description: Force build (skip the version check)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  IMAGE: srcds
+
+concurrency:
+  group: srcds-images   # one run at a time, so cleanups never race another run's push
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      count: ${{ steps.plan.outputs.count }}
+    steps:
+      - uses: actions/checkout@v7 # v7.0.1
+
+      - name: Ensure skopeo
+        run: command -v skopeo || { sudo apt-get update -q && sudo apt-get install -yq skopeo; }
+
+      - name: Check Steam versions against published images
+        id: plan
+        env:
+          GAME: ${{ inputs.game || 'all' }}
+          FORCE: ${{ inputs.force || false }}
+          OWNER: ${{ github.repository_owner }}
+          REGISTRY_USER: ${{ github.actor }}
+          REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: bash docker/srcds/plan.sh
+
+  build:
+    needs: plan
+    if: needs.plan.outputs.count != '0'
+    name: build (${{ matrix.game }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v7 # v7.0.1
+
+      # Some servers are several GB before pruning; give Docker the runner's spare disk.
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@v10 # v10
+        with:
+          build-mount-path: /var/lib/docker
+          remove-dotnet: 'true'
+          remove-android: 'true'
+          remove-haskell: 'true'
+          remove-codeql: 'true'
+
+      - name: Restart Docker on the new mount
+        run: sudo systemctl restart docker && df -h /var/lib/docker
+
+      - uses: docker/setup-buildx-action@v4 # v4.4.1
+
+      - uses: docker/login-action@v4 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push ${{ matrix.tags }}
+        uses: docker/build-push-action@v7 # v7.4.0
+        with:
+          context: docker/srcds
+          file: docker/srcds/Dockerfile
+          push: true
+          provenance: false
+          tags: ${{ matrix.tags }}
+          build-args: |
+            GAME=${{ matrix.game }}
+            APP_ID=${{ matrix.app_id }}
+            GAME_DIR=${{ matrix.game_dir }}
+            KEEP_MAP=${{ matrix.map }}
+            REQUIRED_VERSION=${{ matrix.version }}
+            WINDOWS_FIRST=${{ matrix.windows_first }}
+            VERIFY_VERSION=${{ matrix.verify_version }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+      - name: Delete previous ${{ matrix.game }} images
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          OWNER_TYPE: ${{ github.event.repository.owner.type }}
+          GAME: ${{ matrix.game }}
+          KEEP: ${{ matrix.game }}-${{ matrix.stamp }}
+        run: |
+          set -euo pipefail
+          scope=users; [ "$OWNER_TYPE" = Organization ] && scope=orgs
+          base="/$scope/$OWNER/packages/container/$IMAGE/versions"
+          # Old images of this game: a "<game>-<stamp>" tag, but neither "<game>" nor this
+          # run's stamp (both of which are on the image just pushed).
+          ids=$(gh api --paginate "$base" | jq -r --arg g "$GAME" --arg keep "$KEEP" '
+            .[] | select(.metadata.container.tags as $t
+                         | ($t | index($g) | not) and ($t | index($keep) | not)
+                           and any($t[]; startswith($g + "-")))
+                | "\(.id) \(.metadata.container.tags | join(","))"')
+          if [ -z "$ids" ]; then echo "no previous $GAME images"; fi
+          while read -r id tags; do
+            [ -n "$id" ] || continue
+            echo "deleting version $id ($tags)"
+            gh api -X DELETE "$base/$id"
+          done <<<"$ids"
+
+      - name: Disk usage after build
+        if: always()
+        run: df -h /var/lib/docker; docker system df
+
