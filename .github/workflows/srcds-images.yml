@@ -72,18 +72,38 @@ jobs:
     steps:
       - uses: actions/checkout@v7 # v7.0.1
 
-      # Some servers are several GB before pruning; give Docker the runner's spare disk.
-      - name: Maximize build space
-        uses: easimon/maximize-build-space@v10 # v10
-        with:
-          build-mount-path: /var/lib/docker
-          remove-dotnet: 'true'
-          remove-android: 'true'
-          remove-haskell: 'true'
-          remove-codeql: 'true'
+      # Disk space: not needed at the moment. The current ubuntu-latest image (Ubuntu 26.04)
+      # has ~87 GB free on / out of the box, and the largest build (l4d2: 9.2 GB download,
+      # 7 GB pruned) needs well under that. Re-enable both steps below if a bigger game is
+      # added (e.g. CS:GO: 33 GB download + 28 GB copy) or the runner image shrinks.
+      #
+      # Notes for when it is re-enabled:
+      # - The build runs in the buildx builder, whose state volume lives under
+      #   /var/lib/docker (the new mount). Images, though, go to containerd's store in
+      #   /var/lib/containerd on / (this runner's Docker uses the containerd snapshotter)
+      #   and setup-buildx pulls the BuildKit image there, so / needs headroom.
+      # - The action carves one LVM PV out of / (leaving root-reserve-mb) and a second out
+      #   of /mnt (leaving temp-reserve-mb). On Ubuntu 26.04 runners /mnt is not a separate
+      #   disk, so the second PV eats /'s reserve and / ends with only temp-reserve-mb free
+      #   (100 MB by default, which made the BuildKit pull fail with ENOSPC in run
+      #   44906730500). Hence temp-reserve-mb = the headroom wanted, root-reserve-mb above it.
+      #
+      # - name: Maximize build space
+      #   uses: easimon/maximize-build-space@v10 # v10
+      #   with:
+      #     build-mount-path: /var/lib/docker
+      #     root-reserve-mb: '5120'
+      #     temp-reserve-mb: '4096'
+      #     remove-dotnet: 'true'
+      #     remove-android: 'true'
+      #     remove-haskell: 'true'
+      #     remove-codeql: 'true'
+      #
+      # - name: Restart Docker on the new mount
+      #   run: sudo systemctl restart docker && df -h /var/lib/docker
 
-      - name: Restart Docker on the new mount
-        run: sudo systemctl restart docker && df -h /var/lib/docker
+      - name: Disk space before build
+        run: df -h /
 
       - uses: docker/setup-buildx-action@v4 # v4.4.1
 
@@ -140,5 +160,5 @@ jobs:
 
       - name: Disk usage after build
         if: always()
-        run: df -h /var/lib/docker; docker system df
+        run: df -h /; docker system df
 
