@@ -87,8 +87,10 @@ If(SOURCE_ENGINE MATCHES "csgo" OR SOURCE_ENGINE MATCHES "blade")
          ${SOURCESDK_LIB}/linux/interfaces_i486.a
          ${SOURCESDK_LIB}/linux/libtier0.so
          ${SOURCESDK_LIB}/linux/libvstdlib.so
-         ${SOURCESDK_LIB}/linux32/release/libprotobuf.a
+         protobuf
     )
+    # Built from the SDK's source instead of its prebuilt (old-ABI) libprotobuf.a.
+    include("makefiles/protobuf/protobuf.cmake")
 EndIf()
 
 # ------------------------------------------------------------------
