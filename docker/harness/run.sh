@@ -9,6 +9,8 @@
 #
 # Env:
 #   SRCDS_IMAGE     image repository (default ghcr.io/pet0ruk/srcds); the tag is <game>
+#   GAMES_JSON      per-game settings (default docker/srcds/games.json), e.g. for a game
+#                   without a published image
 #   PULL=0          don't pull the image first
 #   RUNTIME=bare    run on the srcds image as-is, without the libraries Source.Python's bundled
 #                   Python needs (docker/harness/Dockerfile); useful for testing builds that
@@ -23,7 +25,7 @@
 # Exit status: 0 if every check passed (skips are allowed), 1 otherwise.
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
-GAMES_JSON=$(cd "$HERE/../srcds" && pwd)/games.json
+GAMES_JSON=${GAMES_JSON:-$(cd "$HERE/../srcds" && pwd)/games.json}
 GAME=${1:?usage: run.sh <game> <source-python.zip|dir> [out-dir]}
 SRC=$(realpath "${2:?source-python release zip or directory}")
 OUT=$(realpath -m "${3:-$PWD/sp-harness-out/$GAME}")
@@ -70,10 +72,13 @@ if [ "${KEEP_EXECSTACK:-}" != 1 ]; then
     python3 -I "$HERE/tools/clear_execstack.py" "$CORE"
 fi
 
-echo ">> gamedata vtable check against $GAME_DIR/bin/server_srv.so"
+# Dedicated-server builds are server_srv.so; CS:GO ships only server.so.
 cid=$(docker create "$BASE")
-docker cp -q "$cid:/srv/srcds/$GAME_DIR/bin/server_srv.so" "$OUT/server_srv.so"
+for SERVER_SO in server_srv.so server.so; do
+    docker cp -q "$cid:/srv/srcds/$GAME_DIR/bin/$SERVER_SO" "$OUT/server_srv.so" 2>/dev/null && break
+done
 docker rm "$cid" >/dev/null
+echo ">> gamedata vtable check against $GAME_DIR/bin/$SERVER_SO"
 set +e
 python3 -I "$HERE/tools/vtdump.py" "$OUT/server_srv.so" check \
     "$OUT/sp/addons/source-python/data/source-python/entities" "$ENGINE" "$GAME_DIR" \
