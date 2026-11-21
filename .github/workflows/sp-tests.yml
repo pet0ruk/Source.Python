@@ -1,0 +1,109 @@
+# Builds Source.Python from the branch under test and runs the functional tests from
+# docker/harness on the srcds:<game> test images (see srcds-images.yml), one job per game.
+name: Source.Python tests
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      game:
+        description: Game to test
+        required: true
+        type: choice
+        default: all
+        options: [all, tf2, css, dods, hl2dm, l4d2]
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: sp-tests-${{ github.event.pull_request.number || github.ref }}-${{ inputs.game || 'all' }}
+  cancel-in-progress: true
+
+jobs:
+  games:
+    runs-on: ubuntu-latest
+    outputs:
+      list: ${{ steps.list.outputs.list }}
+    steps:
+      - uses: actions/checkout@v7 # v7.0.1
+      - id: list
+        env:
+          GAME: ${{ inputs.game || 'all' }}
+        run: |
+          if [ "$GAME" = all ]; then
+            echo "list=$(jq -c keys_unsorted docker/srcds/games.json)" >> "$GITHUB_OUTPUT"
+          else
+            echo "list=$(jq -cn --arg g "$GAME" '[$g]')" >> "$GITHUB_OUTPUT"
+          fi
+
+  test:
+    needs: games
+    name: test (${{ matrix.game }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        game: ${{ fromJSON(needs.games.outputs.list) }}
+    env:
+      GAME: ${{ matrix.game }}
+    steps:
+      - uses: actions/checkout@v7 # v7.0.1
+
+      - name: Output directories
+        run: |
+          echo "OUT=$RUNNER_TEMP/sp-out" >> "$GITHUB_ENV"
+          echo "CCACHE_DIR=$RUNNER_TEMP/ccache" >> "$GITHUB_ENV"
+
+      # Compiler cache (~30 MB per game): a cold 4-core build takes ~3.5 min, a warm one
+      # ~30 s. Keyed per game. Later runs of the same PR reuse their own cache; a manual run on
+      # main saves caches that every PR can then restore.
+      - uses: actions/cache@v6 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/ccache
+          key: ccache-${{ matrix.game }}-${{ github.sha }}
+          restore-keys: ccache-${{ matrix.game }}-
+
+      - name: Build Source.Python (${{ matrix.game }})
+        run: docker/build/build.sh "$GAME" "$OUT/build"
+
+      - uses: docker/login-action@v4 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run tests on srcds:${{ matrix.game }}
+        env:
+          SRCDS_IMAGE: ghcr.io/${{ github.repository_owner }}/srcds
+        run: |
+          set -o pipefail
+          docker/harness/run.sh "$GAME" "$OUT/build/release" "$OUT/harness" | tee "$OUT/report.txt"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### $GAME (hl2sdk $(cut -c1-9 "$OUT/build/hl2sdk.txt" 2>/dev/null || echo '?'))"
+            echo '```text'
+            sed -n '/^gamedata vtables/,$p' "$OUT/report.txt" 2>/dev/null || echo "no test report (build failed?)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v7 # v7.0.2
+        with:
+          name: sp-tests-${{ matrix.game }}
+          if-no-files-found: ignore
+          path: |
+            ${{ env.OUT }}/report.txt
+            ${{ env.OUT }}/build/build.log
+            ${{ env.OUT }}/build/hl2sdk.txt
+            ${{ env.OUT }}/harness/results.json
+            ${{ env.OUT }}/harness/console.log
+            ${{ env.OUT }}/harness/srcds_run.log
+            ${{ env.OUT }}/harness/gamedata-vtables.txt
+            ${{ env.OUT }}/harness/source-python-logs/
