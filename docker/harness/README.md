@@ -27,7 +27,8 @@ check passed; skips and known issues don't fail a run. Needs Docker, `jq` and Py
 3. Offline gamedata check: `tools/vtdump.py` compares every `[virtual_function]` entry that has a
    mangled-name comment with the vtables in the image's `server_srv.so`, using the same
    engine/game merge order as `GameConfigObj`.
-4. Starts the server on the game's test map with `sp plugin load sp_harness`. The plugin
+4. Starts the server on the game's test map with `sp plugin load sp_harness`, with seccomp off
+   (Docker 29.4's default profile blocks the 32-bit `socketcall` that srcds needs). The plugin
    (`plugin/sp_harness/sp_harness.py`) runs the checks, writes `logs/sp_harness.json` after every
    check, adds bots, runs the player checks and quits.
 5. `tools/report.py` prints the results. If the server crashed, the report names the check that
