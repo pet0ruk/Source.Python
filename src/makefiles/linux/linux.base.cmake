@@ -132,6 +132,11 @@ Set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--exclude-libs,l
 # ("cannot enable executable stack as shared object requires"). Nothing in it needs one.
 Set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-z,noexecstack")
 
+# libstdc++ and libgcc are linked statically (and kept private), so the binaries don't depend on
+# the libstdc++ the server provides: some games ship an old one in bin/ that srcds puts first on
+# the library path (L4D2: no GLIBCXX_3.4.20), which used to have to be deleted.
+Set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -static-libstdc++ -static-libgcc")
+Set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--exclude-libs,libstdc++.a:libgcc.a:libgcc_eh.a")
 
 # ------------------------------------------------------------------
 # Release compiler flags.
