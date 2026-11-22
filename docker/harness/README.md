@@ -43,7 +43,7 @@ check passed; skips and known issues don't fail a run. Needs Docker, `jq` and Py
 | runtime | Python version, platform, engine constants, native stdlib modules (ssl, ctypes, sqlite3, lzma, bz2, uuid, ...), compiled site-packages (greenlet, psycopg2) |
 | engine / entities | map, max clients, worldspawn, create/spawn/remove, `set_model`, `teleport` |
 | filters | `EntityIter` (networked), `BaseEntityIter` (server-only entities) |
-| memory | every `[function]` Linux symbol in the effective gamedata resolves (`find_binary`), `make_function`, vtable read through `Pointer` matches the binary and the gamedata `teleport` slot |
+| memory | every `[function]` identifier for this platform in the effective gamedata resolves (`find_binary`; symbols and byte signatures), `make_function`, vtable read through `Pointer` matches the binary and the gamedata `teleport` slot (the last two need symbols: Linux only, not CS:GO) |
 | cvars / keyvalues / commands | `ConVar` create/set/get, `KeyValues` round trip, `ServerCommand` |
 | stringtables / precache / effects | downloadables, `Model` precache, `TempEntity('BeamPoints')` properties |
 | players (bots) | properties, helpers (userid/index/playerinfo/inthandle), `teleport`, `take_damage`, messages, menus |
@@ -55,6 +55,20 @@ Known issues are reported as `XFAIL` (and `XPASS` once they start passing):
 `cpython-313-x86_64-linux-gnu`, an i686 build configured as x86_64): the markupsafe and
 charset_normalizer speedups are built for the i386 tag, so they never load. With a correctly
 built runtime (SOABI `...-i386-linux-gnu`) it is a normal check.
+
+## Windows
+
+`run-windows.sh` is the same run for the Windows server, in Git Bash on Windows (the CI job
+`test-windows`). It extracts the files of the files-only image `srcds:<game>-windows` with
+`tools/oci_extract.py` (no Docker needed), installs the release (built by
+`docker/build/build-windows.sh`) and runs `srcds.exe -console` with the same plugin. The offline
+vtable check is skipped (server.dll has no symbols), so this run is what exercises the Windows
+offsets and signatures.
+
+```bash
+docker/build/build-windows.sh tf2 out/tf2-win
+docker/harness/run-windows.sh tf2 out/tf2-win/release
+```
 
 ## Per-game notes
 
@@ -70,4 +84,6 @@ server without humans unless `*_bot_join_after_player 0` is set; DoD:S's `bot` n
 - `plugin/sp_harness/sp_harness.py` — the in-server checks
 - `tools/vtdump.py` — vtable dump / gamedata check for 32-bit ELF binaries
   (`vtdump.py <server_srv.so> dump <Class>`)
+- `run-windows.sh` — the Windows runner (see above)
+- `tools/oci_extract.py` — extract a public image's files without Docker
 - `tools/clear_execstack.py`, `tools/report.py`

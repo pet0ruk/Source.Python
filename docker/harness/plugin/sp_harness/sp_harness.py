@@ -235,7 +235,7 @@ def _server_command(command):
 # =============================================================================
 def phase_static():
     check('runtime.python_version', lambda: sys.version.split()[0])
-    check('runtime.platform', lambda: expect(PLATFORM == 'linux', PLATFORM))
+    check('runtime.platform', lambda: [expect(PLATFORM in ('linux', 'windows'), PLATFORM), PLATFORM][1])
     check('runtime.engine', lambda: (SOURCE_ENGINE, SOURCE_ENGINE_BRANCH, GAME_NAME))
     check('runtime.stdlib_native_modules', check_stdlib_native)
     check('runtime.soabi', lambda: sysconfig.get_config_var('SOABI'))
@@ -263,7 +263,7 @@ def phase_static():
     else:
         skip('filters.base_entity_iter_server_only', 'no server-only class known for game')
 
-    check('memory.gamedata_symbols', check_gamedata_symbols)
+    check('memory.gamedata_functions', check_gamedata_functions)
     check('memory.make_function', check_make_function)
     check('memory.vtable_pointer', check_vtable_pointer)
 
@@ -289,12 +289,15 @@ def check_stdlib_native():
     import bz2, ctypes, hashlib, lzma, sqlite3, ssl, uuid, zlib  # noqa: F401,E401
     ssl.create_default_context()
     sqlite3.connect(':memory:').execute('select 1').fetchone()
-    ctypes.CDLL(None)
+    ctypes.CDLL(None) if PLATFORM == 'linux' else ctypes.WinDLL('kernel32')
     return {'openssl': ssl.OPENSSL_VERSION, 'sqlite': sqlite3.sqlite_version}
 
 
-def check_site_packages_native(modules=('greenlet._greenlet', 'psycopg2._psycopg')):
-    """Compiled site-packages must load their C extensions, not a pure-Python fallback."""
+def check_site_packages_native(modules=None):
+    """Compiled site-packages must load their C extensions, not a pure-Python fallback
+    (psycopg2 is only shipped on Linux)."""
+    if modules is None:
+        modules = ('greenlet._greenlet',) + (('psycopg2._psycopg',) if PLATFORM == 'linux' else ())
     loaded, missing = {}, []
     for module in modules:
         try:
@@ -302,10 +305,11 @@ def check_site_packages_native(modules=('greenlet._greenlet', 'psycopg2._psycopg
         except Exception as error:
             missing.append(f'{module}: {error}')
             continue
-        if path.endswith('.so'):
-            loaded[module] = path.rsplit('/', 1)[-1]
+        name = path.replace('\\', '/').rsplit('/', 1)[-1]
+        if name.endswith(('.so', '.pyd')):
+            loaded[module] = name
         else:
-            missing.append(f'{module}: pure Python ({path.rsplit("/", 1)[-1]})')
+            missing.append(f'{module}: pure Python ({name})')
     expect(not missing, f'not loaded as C extensions: {missing}')
     return loaded
 
@@ -369,29 +373,38 @@ def _effective_entity_gamedata():
     return {name[:-4]: GameConfigObj(root / name) for name in sorted(names)}
 
 
-def check_gamedata_symbols():
-    """Every Linux symbol named in the [function] gamedata must resolve in its binary."""
+def _platform_value(data, key, default=None):
+    """A gamedata value the way Source.Python reads it: <key>_<platform> first, then <key>."""
+    return data.get(f'{key}_{PLATFORM}', data.get(key, default))
+
+
+def check_gamedata_functions():
+    """Every [function] identifier in the effective gamedata for this platform resolves in its
+    binary: symbols, and byte signatures ('2A' is a wildcard byte) such as Windows uses."""
+    import binascii
     from memory import find_binary
-    found, missing, binaries = 0, [], {}
+    found, missing, binaries = {'symbols': 0, 'signatures': 0}, [], {}
     for cls, data in _effective_entity_gamedata().items():
-        binary_name = data.get('binary', 'server')
-        srv_check = str(data.get('srv_check', 'True')).lower() != 'false'
+        binary_name = _platform_value(data, 'binary', 'server')
+        srv_check = str(_platform_value(data, 'srv_check', 'True')).lower() != 'false'
         for name, entry in data.get('function', {}).items():
-            ident = entry.get('identifier_linux', entry.get('identifier'))
-            if not ident or ' ' in ident:   # byte signatures are not symbols
+            ident = _platform_value(entry, 'identifier')
+            if not ident:
                 continue
+            kind = 'signatures' if ' ' in ident else 'symbols'
             key = (binary_name, srv_check)
             if key not in binaries:
                 binaries[key] = find_binary(binary_name, srv_check)
             try:
-                binaries[key][ident]
-                found += 1
+                binaries[key][binascii.unhexlify(ident.replace(' ', '')) if kind == 'signatures'
+                              else ident]
+                found[kind] += 1
             except Exception:
-                missing.append(f'{cls}.{name} ({ident})')
-    if not found and not missing:
-        raise Skip('no [function] entries with Linux symbols in this game\'s gamedata')
+                missing.append(f'{cls}.{name} ({ident[:40]})')
+    if not any(found.values()) and not missing:
+        raise Skip(f'no [function] identifiers for {PLATFORM} in this game\'s gamedata')
     expect(not missing, f'{len(missing)} unresolved: {missing[:10]}')
-    return f'{found} symbols resolved'
+    return found
 
 
 def _server_symbol(symbol):
@@ -400,6 +413,8 @@ def _server_symbol(symbol):
     from memory import find_binary
     data = GameConfigObj(SP_DATA_PATH / 'entities' / 'CBaseEntity.ini')
     srv_check = str(data.get('srv_check', 'True')).lower() != 'false'
+    if PLATFORM == 'windows':
+        raise Skip('Windows server binaries have no symbols')
     if SOURCE_ENGINE == 'csgo':
         raise Skip('the server binary is stripped (no symbols)')
     return find_binary('server', srv_check)[symbol]
