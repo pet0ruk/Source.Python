@@ -35,5 +35,15 @@
     "map": "c1m1_hotel",
     "windows_first": true,
     "notes": "Fresh Linux installs fail with 'Invalid platform' unless installed as Windows first."
+  },
+  "csgo": {
+    "app_id": 740,
+    "game_dir": "csgo",
+    "sp_engine": "csgo",
+    "map": "de_dust2",
+    "vpk_strip": "csgo/pak01_dir.vpk:vtf,wav,mp3,png",
+    "prune": "csgo/pakxv_* csgo/panorama",
+    "remove_game_libstdcxx": true,
+    "notes": "No version_app_id: the CS:GO server (app 740) hasn't changed since CS2 replaced it (version 1575, Oct 2023), so the image is only built when missing. Its server ships the client's content; vpk_strip and prune drop what a dedicated server doesn't load (textures, audio, UI images, the China/low-violence variants, the Panorama UI: 28 GB -> 4.4 GB). Its bundled libgcc_s is older than the image's libstdc++, which the engine then fails to load."
   }
 }

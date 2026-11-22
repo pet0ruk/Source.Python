@@ -4,7 +4,7 @@
 #
 #   docker/harness/run-windows.sh <game> <source-python release .zip | extracted dir> [out-dir]
 #
-#   <game>     a key of docker/srcds/games.json (tf2, css, dods, hl2dm, l4d2)
+#   <game>     a key of docker/srcds/games.json (tf2, css, dods, hl2dm, l4d2, csgo)
 #   out-dir    default ./sp-harness-out/<game>-windows; receives results.json, console.log,
 #              srcds_run.log and Source.Python's logs
 #

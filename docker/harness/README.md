@@ -10,7 +10,7 @@ docker/harness/run.sh css path/to/extracted-release out/css
 OVERLAY_REPO=1 docker/harness/run.sh dods release.zip       # test working-tree Python/data
 ```
 
-Games: the keys of `docker/srcds/games.json` (tf2, css, dods, hl2dm, l4d2). The release must be
+Games: the keys of `docker/srcds/games.json` (tf2, css, dods, hl2dm, l4d2, csgo). The release must be
 for the same game (each Linux build targets one engine branch). Exit status is 0 only if every
 check passed; skips and known issues don't fail a run. Needs Docker, `jq` and Python 3.
 
@@ -86,6 +86,13 @@ docker/harness/run-windows.sh tf2 out/tf2-win/release
 Bot setup lives in `GAMES` at the top of the plugin. TF2, CS:S and HL2DM remove bots on a
 server without humans unless `*_bot_join_after_player 0` is set; DoD:S's `bot` needs
 `sv_cheats 1`; HL2DM's bots are `hl2mp_bot_add` (NextBot, since the 2025 update).
+
+CS:GO: the test image has the server without the client content its install ships (textures,
+audio, UI images; see `vpk_strip` and `prune` in `docker/srcds/games.json`), 4.4 GB instead of
+28 GB. Its bundled `libgcc_s` is removed (`remove_game_libstdcxx`), as the engine can't load
+with it next to the image's newer `libstdc++`. Bots are immune to damage for a while after
+spawning in warmup, so `players.take_damage` clears that first. The Linux server binary is
+stripped, so the symbol checks are skipped.
 
 ## Files
 

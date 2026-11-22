@@ -20,7 +20,11 @@
 ARG BASE=steamcmd/steamcmd:debian-trixie
 
 FROM ${BASE} AS steamcmd
-COPY prepare.sh /usr/local/bin/prepare.sh
+# python3 for vpk_strip.py (only the download stages have it, not the images)
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends python3-minimal \
+ && rm -rf /var/lib/apt/lists/*
+COPY prepare.sh vpk_strip.py /usr/local/bin/
 
 FROM steamcmd AS download-linux
 ARG APP_ID
@@ -29,9 +33,12 @@ ARG KEEP_MAP
 ARG REQUIRED_VERSION=
 ARG WINDOWS_FIRST=
 ARG VERIFY_VERSION=1
+ARG VPK_STRIP=
+ARG PRUNE=
 RUN APP_ID="${APP_ID}" GAME_DIR="${GAME_DIR}" KEEP_MAP="${KEEP_MAP}" PLATFORM=linux \
     REQUIRED_VERSION="${REQUIRED_VERSION}" WINDOWS_FIRST="${WINDOWS_FIRST}" \
-    VERIFY_VERSION="${VERIFY_VERSION}" bash /usr/local/bin/prepare.sh
+    VERIFY_VERSION="${VERIFY_VERSION}" VPK_STRIP="${VPK_STRIP}" PRUNE="${PRUNE}" \
+    bash /usr/local/bin/prepare.sh
 
 FROM steamcmd AS download-windows
 ARG APP_ID
@@ -39,9 +46,11 @@ ARG GAME_DIR
 ARG KEEP_MAP
 ARG REQUIRED_VERSION=
 ARG VERIFY_VERSION=1
+ARG VPK_STRIP=
+ARG PRUNE=
 RUN APP_ID="${APP_ID}" GAME_DIR="${GAME_DIR}" KEEP_MAP="${KEEP_MAP}" PLATFORM=windows \
     REQUIRED_VERSION="${REQUIRED_VERSION}" VERIFY_VERSION="${VERIFY_VERSION}" \
-    bash /usr/local/bin/prepare.sh
+    VPK_STRIP="${VPK_STRIP}" PRUNE="${PRUNE}" bash /usr/local/bin/prepare.sh
 
 FROM scratch AS windows
 COPY --from=download-windows /srv/srcds /srv/srcds
