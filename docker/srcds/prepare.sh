@@ -63,10 +63,16 @@ fi
 if [ -n "${VPK_STRIP:-}" ]; then
     python3 -I /usr/local/bin/vpk_strip.py "$DIR/${VPK_STRIP%%:*}" "${VPK_STRIP#*:}"
 fi
-for pattern in ${PRUNE:-}; do
+# split PRUNE into patterns without expanding them here (nullglob would drop any that match
+# nothing in the current directory); each is expanded under $DIR
+set -f; read -ra patterns <<<"${PRUNE:-}"; set +f
+for pattern in "${patterns[@]}"; do
     case "$pattern" in /*|*..*) echo "!! PRUNE pattern '$pattern' must be relative" >&2; exit 1 ;; esac
     # shellcheck disable=SC2086  # the pattern is a glob
-    rm -rf "$DIR"/$pattern
+    matches=("$DIR"/$pattern)
+    [ "${#matches[@]}" -gt 0 ] || { echo "!! PRUNE pattern '$pattern' matches nothing" >&2; exit 1; }
+    echo ">> pruning $pattern (${#matches[@]})"
+    rm -rf "${matches[@]}"
 done
 
 # Steam bookkeeping that isn't needed to run the server.
