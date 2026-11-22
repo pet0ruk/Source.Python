@@ -246,7 +246,7 @@ def _on_client_active(index):
 
 @OnConVarChanged
 def _on_convar_changed(convar, old_value):
-    if convar.name in ('sp_harness_var', 'sv_gravity'):
+    if convar.name in ('sp_harness_var', 'sv_alltalk'):
         COUNTS['listener.on_convar_changed'] += 1
         CONVAR_CHANGES.append((convar.name, old_value, convar.get_string()))
 
@@ -686,7 +686,8 @@ def phase_players():
 
     # triggers for listener/event counters, checked in finish()
     queue_command_string('sp_harness_var 9')
-    queue_command_string('sv_gravity 799')
+    # a game convar too (not sv_gravity: development-only on L4D2, its console rejects it)
+    queue_command_string('sv_alltalk 1')
     if GAME['bots']:
         queue_command_string(GAME['bots'][0])
     Delay(5, change_map)
@@ -703,7 +704,7 @@ HAD_PLAYERS = []
 def change_map():
     """changelevel to the same map: a full level shutdown and init with Source.Python (and
     this plugin) staying loaded."""
-    # before the level changes: some games reset convars for a new level (L4D2: sv_gravity)
+    # before the level changes, which may reset game convars
     check('cvars.console_changes', check_console_convar_changes)
     RESULTS['map_change_from'] = global_vars.map_name
     MAP_CHANGE['started'] = True
@@ -814,10 +815,10 @@ def check_console_convar_changes():
     """Values set from the server console (phase_players) are what Source.Python reads, and
     OnConVarChanged was given the old and new values."""
     from cvars import cvar
-    for name, value in (('sp_harness_var', 9), ('sv_gravity', 799)):
+    for name, value in (('sp_harness_var', 9), ('sv_alltalk', 1)):
         expect(cvar.find_var(name).get_int() == value, (name, cvar.find_var(name).get_int()))
-    gravity = [change for change in CONVAR_CHANGES if change[0] == 'sv_gravity']
-    expect(gravity and gravity[-1][2] == '799' and gravity[-1][1] != '799', CONVAR_CHANGES)
+    alltalk = [change for change in CONVAR_CHANGES if change[0] == 'sv_alltalk']
+    expect(alltalk and alltalk[-1][2] == '1' and alltalk[-1][1] != '1', CONVAR_CHANGES)
     harness = [change for change in CONVAR_CHANGES if change[0] == 'sp_harness_var']
     expect(harness and harness[-1][1:] == ('5', '9'), CONVAR_CHANGES)
     return CONVAR_CHANGES
