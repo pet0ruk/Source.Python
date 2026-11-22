@@ -127,6 +127,11 @@ Set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -fno-threadsafe-statics -v -f
 # ------------------------------------------------------------------
 Set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--exclude-libs,libprotobuf.a")
 
+# The prebuilt dyncall archives contain assembly objects without a .note.GNU-stack section, so the
+# linker would mark core.so as needing an executable stack, which glibc >= 2.41 refuses to load
+# ("cannot enable executable stack as shared object requires"). Nothing in it needs one.
+Set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-z,noexecstack")
+
 
 # ------------------------------------------------------------------
 # Release compiler flags.
