@@ -40,8 +40,6 @@ Include_Directories(
 # ------------------------------------------------------------------
 Set(SOURCEPYTHON_LINK_LIBRARIES
     pthread dl util
-    ${BOOSTSDK_LIB}/libboost_filesystem.a
-    ${BOOSTSDK_LIB}/libboost_system.a
 )
 
 

@@ -31,9 +31,9 @@
 #include "updater.h"
 #include "definitions.h"
 
-// Boost
-#include "boost/filesystem.hpp"
-namespace bfs = boost::filesystem;
+// C++
+#include <filesystem>
+namespace fs = std::filesystem;
 
 // SDK
 #include "eiface.h"
@@ -55,34 +55,34 @@ bool UpdateAvailable()
 	char szGameDir[MAX_PATH_LENGTH];
 	engine->GetGameDir(szGameDir, MAX_PATH_LENGTH);
 
-	bfs::path updateDir = bfs::path(szGameDir) / SP_UPDATE_PATH;
-	bool result = bfs::is_directory(updateDir) && !bfs::is_empty(updateDir);
+	fs::path updateDir = fs::path(szGameDir) / SP_UPDATE_PATH;
+	bool result = fs::is_directory(updateDir) && !fs::is_empty(updateDir);
 
 	DevMsg(1, "%s.\n", result ? "Yes" : "No");
 	return result;
 }
 
-static void DeleteDir(const bfs::path& dir)
+static void DeleteDir(const fs::path& dir)
 {
 	DevMsg(1, MSG_PREFIX "Deleting %s...\n", dir.string().c_str());
-	bfs::remove_all(dir);
+	fs::remove_all(dir);
 }
 
-static void MergeDirectories(const bfs::path& src, const bfs::path& dst)
+static void MergeDirectories(const fs::path& src, const fs::path& dst)
 {
-	if (bfs::is_directory(src)) {
-		bfs::create_directories(dst);
+	if (fs::is_directory(src)) {
+		fs::create_directories(dst);
 
-		bfs::directory_iterator end_iter;
-		for (bfs::directory_iterator iter(src); iter != end_iter; ++iter)
+		fs::directory_iterator end_iter;
+		for (fs::directory_iterator iter(src); iter != end_iter; ++iter)
 		{
 			MergeDirectories(iter->path(), dst/iter->path().filename());
 		}
 	} 
-	else if (bfs::is_regular_file(src))
+	else if (fs::is_regular_file(src))
 	{
 		DevMsg(5, MSG_PREFIX "Merging %s into %s...\n", src.string().c_str(), dst.string().c_str());
-		bfs::rename(src, dst);
+		fs::rename(src, dst);
 	} 
 	else
 	{
@@ -98,14 +98,14 @@ void ApplyUpdateStage2()
 	engine->GetGameDir(szGameDir, MAX_PATH_LENGTH);
 
 	// Delete old directories
-	DeleteDir(bfs::path(szGameDir) / SP_PACKAGE_PATH);
-	DeleteDir(bfs::path(szGameDir) / SITE_PACKAGE_PATH);
-	DeleteDir(bfs::path(szGameDir) / SP_DATA_PATH);
-	DeleteDir(bfs::path(szGameDir) / SP_DOCS_PATH);
-	DeleteDir(bfs::path(szGameDir) / PYTHON3_PATH);
+	DeleteDir(fs::path(szGameDir) / SP_PACKAGE_PATH);
+	DeleteDir(fs::path(szGameDir) / SITE_PACKAGE_PATH);
+	DeleteDir(fs::path(szGameDir) / SP_DATA_PATH);
+	DeleteDir(fs::path(szGameDir) / SP_DOCS_PATH);
+	DeleteDir(fs::path(szGameDir) / PYTHON3_PATH);
 
 	// Move files from update dir to real dir
-	bfs::path updateDir = bfs::path(szGameDir) / SP_UPDATE_PATH;
+	fs::path updateDir = fs::path(szGameDir) / SP_UPDATE_PATH;
 	DevMsg(1, MSG_PREFIX "Merging \"%s\" into \"%s\"...\n", updateDir.string().c_str(), szGameDir);
 	MergeDirectories(updateDir, szGameDir);
 

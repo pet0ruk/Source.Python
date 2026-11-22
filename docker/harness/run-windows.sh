@@ -17,6 +17,7 @@
 #   TIMEOUT         seconds before the server is killed (default 240)
 #   OVERLAY_REPO=1  copy this repository's tracked addons/cfg/resource/sound files over the
 #                   release, as in run.sh
+#   NO_UPDATE=1     don't stage an update for the loader to apply on start, as in run.sh
 #
 # The offline gamedata vtable check (run.sh) needs the symbols of the Linux server binary, so it
 # is reported as skipped; this run is what exercises the Windows offsets and signatures.
@@ -66,6 +67,8 @@ fi
 mkdir -p "$G/addons/source-python/plugins/sp_harness" "$G/cfg"
 cp "$HERE/plugin/sp_harness/sp_harness.py" "$G/addons/source-python/plugins/sp_harness/"
 printf 'sv_hibernate_when_empty 0\nsp plugin load sp_harness\n' > "$G/cfg/sp_harness.cfg"
+# an update for the loader to apply on start (update.stage2), as in run.sh
+[ "${NO_UPDATE:-}" = 1 ] || bash "$HERE/tools/stage_update.sh" "$G"
 
 echo 'not available on Windows (server.dll has no symbols)' > "$OUT/gamedata-vtables.txt"
 echo skip > "$OUT/gamedata-vtables.rc"

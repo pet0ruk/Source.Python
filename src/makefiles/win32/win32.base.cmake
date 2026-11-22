@@ -50,6 +50,10 @@ set_property(TARGET core source-python PROPERTY
 
 SET(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} /SAFESEH:NO")
 
+# The loader uses std::filesystem (updater.cpp), which MSVC only has from C++17; its default is
+# C++14 (Linux builds everything as C++17, linux.base.cmake).
+Set_Target_Properties(source-python PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+
 # ------------------------------------------------------------------
 # DynamicHooks and AsmJit, built from pinned source.
 # ------------------------------------------------------------------
@@ -63,8 +67,6 @@ Set(SOURCEPYTHON_LINK_LIBRARIES
     dyncall_s
     dynload_s
     DynamicHooks
-    ${BOOSTSDK_LIB}/libboost_filesystem-vc143-mt-s-x32-1_87.lib
-    ${BOOSTSDK_LIB}/libboost_system-vc143-mt-s-x32-1_87.lib
 )
 
 If( SOURCE_ENGINE MATCHES "orangebox")

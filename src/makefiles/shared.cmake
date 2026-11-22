@@ -25,13 +25,6 @@ Set(SOURCESDK            ${SOURCESDK_DIR}/${BRANCH})
 Set(SOURCESDK_LIB        ${SOURCESDK}/lib)
 
 # ------------------------------------------------------------------
-# Boost specific.
-# ------------------------------------------------------------------
-Set(BOOSTSDK             ${THIRDPARTY_DIR}/boost)
-Set(BOOSTSDK_INCLUDE     ${BOOSTSDK}) # ..needed to allow #include <boost/xx.hpp>
-Set(BOOSTSDK_LIB         ${BOOSTSDK}/lib)
-
-# ------------------------------------------------------------------
 # Dyncall specific.
 # ------------------------------------------------------------------
 # Built from source by makefiles/dyncall/dyncall.cmake.
@@ -52,7 +45,6 @@ Include_Directories(
     ${SOURCESDK}/public/tier1
     ${SOURCESDK}/public/engine/protobuf
     ${DYNCALLSDK_INCLUDE}
-    ${BOOSTSDK_INCLUDE}
     ${CMAKE_CURRENT_SOURCE_DIR}/core # Hack but required.
 )
 
