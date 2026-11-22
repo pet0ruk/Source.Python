@@ -1,7 +1,7 @@
 # ------------------------------------------------------------------
 # Set minimum required version of CMake
 # ------------------------------------------------------------------
-CMake_Minimum_Required(VERSION 3.15)
+CMake_Minimum_Required(VERSION 3.19)
 project(source-python)
 
 # ------------------------------------------------------------------

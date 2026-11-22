@@ -51,14 +51,18 @@ set_property(TARGET core source-python PROPERTY
 SET(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} /SAFESEH:NO")
 
 # ------------------------------------------------------------------
+# DynamicHooks and AsmJit, built from pinned source.
+# ------------------------------------------------------------------
+include("makefiles/dynamichooks/dynamichooks.cmake")
+
+# ------------------------------------------------------------------
 # Link libraries.
 # ------------------------------------------------------------------
 Set(SOURCEPYTHON_LINK_LIBRARIES
     ${SOURCEPYTHON_LINK_LIBRARIES}
     dyncall_s
     dynload_s
-    ${ASMJITSDK_LIB}/AsmJit.lib
-    ${DYNAMICHOOKSSDK_LIB}/DynamicHooks.lib
+    DynamicHooks
     ${BOOSTSDK_LIB}/libboost_filesystem-vc143-mt-s-x32-1_87.lib
     ${BOOSTSDK_LIB}/libboost_system-vc143-mt-s-x32-1_87.lib
 )
