@@ -22,6 +22,9 @@ Endif(NOT CMAKE_BUILD_TYPE)
 # ------------------------------------------------------------------
 include("makefiles/python-runtime.cmake")
 
+# dyncall_s and dynload_s, built from thirdparty/dyncall.
+include("makefiles/dyncall/dyncall.cmake")
+
 # The loader dlopens Python3/plat-linux/<this>.
 Add_Definitions(-DSP_LIBPYTHON_LINUX="${PYTHONSDK_LIBPYTHON}")
 
@@ -127,9 +130,10 @@ Set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -fno-threadsafe-statics -v -f
 # ------------------------------------------------------------------
 Set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--exclude-libs,libprotobuf.a")
 
-# The prebuilt dyncall archives contain assembly objects without a .note.GNU-stack section, so the
-# linker would mark core.so as needing an executable stack, which glibc >= 2.41 refuses to load
-# ("cannot enable executable stack as shared object requires"). Nothing in it needs one.
+# Nothing in core.so needs an executable stack, which glibc >= 2.41 refuses to load ("cannot enable
+# executable stack as shared object requires"). dyncall's assembly is built with --noexecstack
+# (makefiles/dyncall/dyncall.cmake); this makes sure no other object without a .note.GNU-stack
+# section turns it back on.
 Set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-z,noexecstack")
 
 # libstdc++ and libgcc are linked statically (and kept private), so the binaries don't depend on
@@ -151,8 +155,7 @@ Set(SOURCEPYTHON_LINK_LIBRARIES_RELEASE
     ${PYTHONSDK_LIBS}
     ${DYNAMICHOOKSSDK_LIB}/libDynamicHooks.a
     ${ASMJITSDK_LIB}/libasmjit.a
-    ${DYNCALLSDK_LIB}/libdyncall_s.a
-    ${DYNCALLSDK_LIB}/libdyncallback_s.a
-    ${DYNCALLSDK_LIB}/libdynload_s.a
+    dyncall_s
+    dynload_s
     rt
 )

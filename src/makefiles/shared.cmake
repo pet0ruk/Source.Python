@@ -34,9 +34,9 @@ Set(BOOSTSDK_LIB         ${BOOSTSDK}/lib)
 # ------------------------------------------------------------------
 # Dyncall specific.
 # ------------------------------------------------------------------
+# Built from source by makefiles/dyncall/dyncall.cmake.
 Set(DYNCALLSDK           ${THIRDPARTY_DIR}/dyncall)
-Set(DYNCALLSDK_INCLUDE   ${DYNCALLSDK}/include)
-Set(DYNCALLSDK_LIB       ${DYNCALLSDK}/lib)
+Set(DYNCALLSDK_INCLUDE   ${DYNCALLSDK}/dyncall ${DYNCALLSDK}/dynload)
 
 # ------------------------------------------------------------------
 # AsmJit specific.
