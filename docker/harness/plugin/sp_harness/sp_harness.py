@@ -474,9 +474,9 @@ def check_update_stage2():
     the update had is in data/source-python, and update/ is gone."""
     from paths import UPDATE_PATH
     marker = SP_DATA_PATH / 'sp_harness_update.txt'
-    if not marker.isfile() and not UPDATE_PATH.isdir():
+    if not marker.is_file() and not UPDATE_PATH.is_dir():
         raise Skip('no update was staged (NO_UPDATE=1)')
-    expect(marker.isfile(), 'the staged update was not applied')
+    expect(marker.is_file(), 'the staged update was not applied')
     expect(not UPDATE_PATH.exists(), f'{UPDATE_PATH} is still there')
 
 
