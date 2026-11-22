@@ -14,6 +14,7 @@ results file whose "running" entry names the check that was executing.
 # Python Imports
 import json
 import sys
+import sysconfig
 import time
 import traceback
 
@@ -237,10 +238,15 @@ def phase_static():
     check('runtime.platform', lambda: expect(PLATFORM == 'linux', PLATFORM))
     check('runtime.engine', lambda: (SOURCE_ENGINE, SOURCE_ENGINE_BRANCH, GAME_NAME))
     check('runtime.stdlib_native_modules', check_stdlib_native)
+    check('runtime.soabi', lambda: sysconfig.get_config_var('SOABI'))
     check('runtime.site_packages_native', check_site_packages_native)
-    known_issue('runtime.site_packages_speedups', check_site_packages_speedups,
-                'speedups are built for the i386 ABI tag but the bundled Python uses the '
-                'x86_64 one, so they never load (pure-Python fallback)')
+    if 'x86_64' in (sysconfig.get_config_var('SOABI') or ''):
+        # the vendored Python of older releases: an i686 build configured as x86_64
+        known_issue('runtime.site_packages_speedups', check_site_packages_speedups,
+                    'speedups are built for the i386 ABI tag but the bundled Python uses the '
+                    'x86_64 one, so they never load (pure-Python fallback)')
+    else:
+        check('runtime.site_packages_speedups', check_site_packages_speedups)
 
     check('engine.map_name', lambda: expect(global_vars.map_name, 'no map'))
     check('engine.max_clients', lambda: expect(global_vars.max_clients >= WANT_PLAYERS + 1,

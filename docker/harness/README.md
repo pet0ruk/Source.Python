@@ -49,8 +49,10 @@ check passed; skips and known issues don't fail a run. Needs Docker, `jq` and Py
 | events | `event['userid']`, `event.variables.get_int()` and `.as_dict()` agree with `event.get_int()` (upstream issue #536) |
 
 Known issues are reported as `XFAIL` (and `XPASS` once they start passing):
-`runtime.site_packages_speedups` — the markupsafe/charset_normalizer speedups are built for
-the i386 ABI tag while the bundled Python uses the x86_64 one, so they never load.
+`runtime.site_packages_speedups` on releases with the old vendored Python (SOABI
+`cpython-313-x86_64-linux-gnu`, an i686 build configured as x86_64): the markupsafe and
+charset_normalizer speedups are built for the i386 tag, so they never load. With a correctly
+built runtime (SOABI `...-i386-linux-gnu`) it is a normal check.
 
 ## Per-game notes
 

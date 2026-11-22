@@ -18,11 +18,12 @@ If(NOT CMAKE_BUILD_TYPE)
 Endif(NOT CMAKE_BUILD_TYPE)
 
 # ------------------------------------------------------------------
-# Python directories
+# Python runtime (headers, libpython, Boost.Python)
 # ------------------------------------------------------------------
-Set(PYTHONSDK            ${THIRDPARTY_DIR}/python_linux)
-Set(PYTHONSDK_INCLUDE    ${PYTHONSDK}/include)
-Set(PYTHONSDK_LIB        ${PYTHONSDK}/libs)
+include("makefiles/linux/python-runtime.cmake")
+
+# The loader dlopens Python3/plat-linux/<this>.
+Add_Definitions(-DSP_LIBPYTHON_LINUX="${PYTHONSDK_LIBPYTHON}")
 
 # ------------------------------------------------------------------
 # Add in the python sdk as an include directory.
@@ -137,9 +138,7 @@ Set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_NDEBUG")
 # correctly...
 # ------------------------------------------------------------------
 Set(SOURCEPYTHON_LINK_LIBRARIES_RELEASE
-    ${PYTHONSDK_LIB}/libpython3.13.a
-    ${PYTHONSDK_LIB}/libpython3.13.so.1.0
-    ${BOOSTSDK_LIB}/libboost_python313.a
+    ${PYTHONSDK_LIBS}
     ${DYNAMICHOOKSSDK_LIB}/libDynamicHooks.a
     ${ASMJITSDK_LIB}/libasmjit.a
     ${DYNCALLSDK_LIB}/libdyncall_s.a
