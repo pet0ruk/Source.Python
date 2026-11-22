@@ -9,11 +9,14 @@
 #                              docker/harness/run.sh or a server
 #                build.log     cmake + make output
 #                hl2sdk.txt    the hl2sdk commit that was built against
+#                python-runtime.txt  the Python runtime's manifest
 #
 # Env:
 #   HL2SDK_REV   hl2sdk commit/branch to build against (default: the branch head, like Build.sh)
 #   JOBS         parallel compile jobs (default: nproc; each Boost.Python unit needs 1-2 GB RAM)
 #   CCACHE_DIR   host directory for ccache (optional; speeds up rebuilds)
+#   SP_PYTHON_RUNTIME_ARCHIVE  local Python runtime bundle (.tar.gz) to build and ship with,
+#                instead of the release pinned in src/makefiles/linux/python-runtime.cmake
 #
 # Only tracked files are used (as they are in the working tree), so local build outputs and
 # SDK checkouts under src/ don't leak in. Building happens in <out-dir>/work.
@@ -48,18 +51,22 @@ fi
 echo ">> building $BRANCH with $JOBS jobs"
 docker build -q -t sp-build "$HERE" >/dev/null
 cache_args=()
-launcher=()
+cmake_args=()
+if [ -n "${SP_PYTHON_RUNTIME_ARCHIVE:-}" ]; then
+    cp "$SP_PYTHON_RUNTIME_ARCHIVE" "$WORK/python-runtime.tar.gz"
+    cmake_args+=(-DSP_PYTHON_RUNTIME_ARCHIVE=/work/python-runtime.tar.gz)
+fi
 if [ -n "${CCACHE_DIR:-}" ]; then
     mkdir -p "$CCACHE_DIR"
     cache_args=(-v "$(realpath "$CCACHE_DIR"):/ccache" -e CCACHE_DIR=/ccache
                 -e CCACHE_BASEDIR=/work -e CCACHE_NOHASHDIR=1)
-    launcher=(-DCMAKE_CXX_COMPILER_LAUNCHER=ccache)
+    cmake_args+=(-DCMAKE_CXX_COMPILER_LAUNCHER=ccache)
 fi
 set +e
 docker run --rm -u "$(id -u):$(id -g)" -v "$WORK:/work" -w /work/src "${cache_args[@]}" \
     sp-build bash -c "
         set -e
-        cmake . -BBuilds/Linux/$BRANCH -DBRANCH=$BRANCH ${launcher[*]}
+        cmake . -BBuilds/Linux/$BRANCH -DBRANCH=$BRANCH ${cmake_args[*]}
         make -C Builds/Linux/$BRANCH -j$JOBS
         [ -z \"\${CCACHE_DIR:-}\" ] || ccache -s" > "$OUT/build.log" 2>&1
 rc=$?
@@ -76,6 +83,27 @@ echo ">> staging $OUT/release"
 B=$WORK/src/Builds/Linux/$BRANCH
 git -C "$REPO" ls-files -z addons cfg logs resource sound | (cd "$REPO" && tar -c --null -T -) \
     | tar -x -C "$OUT/release"
+# The Python runtime replaces the repository's vendored Linux Python: its Python3/ (stdlib,
+# lib-dynload, plat-linux) and its compiled site-packages.
+RT=$B/python-runtime
+# Its compiled packages replace the vendored copies (which Windows still uses), so the versions
+# must agree with site-packages/requirements.txt.
+REQ=$REPO/addons/source-python/packages/site-packages/requirements.txt
+for pkg in greenlet psycopg2 markupsafe charset_normalizer; do
+    have=$(sed -n "s/^$pkg=//p" "$RT/manifest.txt")
+    want=$(tr 'A-Z-' 'a-z_' < "$REQ" | sed -n "s/^$pkg==//p")
+    if [ -n "$want" ] && [ "$have" != "$want" ]; then
+        echo "!! python runtime has $pkg $have, requirements.txt says $want" >&2; exit 1
+    fi
+done
+rm -rf "$OUT/release/addons/source-python/Python3"
+rm -f "$OUT/release/addons/source-python/packages/site-packages"/_sysconfigdata_*.py
+for p in "$RT/runtime/addons/source-python/packages/site-packages"/*; do
+    rm -rf "$OUT/release/addons/source-python/packages/site-packages/$(basename "$p")"
+done
+cp -a "$RT/runtime/." "$OUT/release/"
+cp "$RT/manifest.txt" "$OUT/python-runtime.txt"
+echo "   python runtime $(sed -n 's/^release=//p' "$RT/manifest.txt") ($(sed -n 's/^platform=//p' "$RT/manifest.txt"))"
 cp "$B/source-python.so" "$OUT/release/addons/"
 mkdir -p "$OUT/release/addons/source-python/bin"
 cp "$B/core.so" "$OUT/release/addons/source-python/bin/"

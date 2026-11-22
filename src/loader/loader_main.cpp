@@ -208,16 +208,9 @@ bool CSourcePython::Load( CreateInterfaceFn interfaceFactory, CreateInterfaceFn 
 	if( SPLoadLibrary(engine, VCRUNTIME_LIB) == NULL ) {
 		return false;
 	}
-
-	// ------------------------------------------------------------------
-	// Load linux dependencies.
-	// ------------------------------------------------------------------
-#elif __linux__
-	// See issue #466.
-	if (SPLoadLibrary(engine, ZLIB_LIB) == NULL) {
-		return false;
-	}
 #endif
+	// Linux: zlib used to be preloaded from Python3/plat-linux (issue #466). The Python runtime
+	// now links zlib statically into its modules, so the server's own copy no longer matters.
 
 	// ------------------------------------------------------------------
 	// Load python.
