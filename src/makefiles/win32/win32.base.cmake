@@ -63,8 +63,6 @@ Set(SOURCEPYTHON_LINK_LIBRARIES
     dyncall_s
     dynload_s
     DynamicHooks
-    ${BOOSTSDK_LIB}/libboost_filesystem-vc143-mt-s-x32-1_87.lib
-    ${BOOSTSDK_LIB}/libboost_system-vc143-mt-s-x32-1_87.lib
 )
 
 If( SOURCE_ENGINE MATCHES "orangebox")

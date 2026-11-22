@@ -8,7 +8,8 @@
 #
 #    The bundle is downloaded and unpacked into
 #    <build dir>/python-runtime:
-#      build/include, build/lib  headers, libpython, Boost.Python
+#      build/include, build/lib  headers (Python, all of Boost),
+#                                libpython, Boost.Python
 #      runtime/                  laid over the release tree (Python3/,
 #                                compiled site-packages)
 #      manifest.txt              versions (python_abi, libpython, ...)
@@ -20,15 +21,15 @@
 #      SP_PYTHON_RUNTIME_ARCHIVE  a local bundle archive to use instead
 #                                 of downloading (not checksum-verified)
 # ------------------------------------------------------------------
-Set(SP_PYTHON_RUNTIME_RELEASE  3.13.17-r1)
+Set(SP_PYTHON_RUNTIME_RELEASE  3.13.17-r2)
 If(WIN32)
     Set(SP_PYTHON_RUNTIME_PLATFORM win32)
     Set(SP_PYTHON_RUNTIME_EXT      zip)
-    Set(SP_PYTHON_RUNTIME_SHA256   0bed112ca0ecafcb030f5f655f5418c57ea58f4f85686519e3e4e03cedce2723)
+    Set(SP_PYTHON_RUNTIME_SHA256   c7de0fcb0453d6ac0957c1e3d7be8eba15f08a1356d79fe9779fb788a10d6ba6)
 Else()
     Set(SP_PYTHON_RUNTIME_PLATFORM manylinux_2_28_i686)
     Set(SP_PYTHON_RUNTIME_EXT      tar.gz)
-    Set(SP_PYTHON_RUNTIME_SHA256   4d4332824137e717abb64f793491f2df544135f094be47d02efeaf581d6a0ac1)
+    Set(SP_PYTHON_RUNTIME_SHA256   744a68b3eab373d09ee3f3a37152477771e893ae113aaf4816784ef64b400bb4)
 EndIf()
 Set(SP_PYTHON_RUNTIME_URL_BASE https://github.com/pet0ruk/source-python-runtime/releases/download)
 
@@ -100,7 +101,14 @@ EndForEach()
 Message(STATUS "Python runtime: ${SP_PYTHON_RUNTIME_RELEASE} (Python ${SP_PYTHON_RUNTIME_PYTHON}, ${SP_PYTHON_RUNTIME_SOABI})")
 
 String(REPLACE "." "" _pyn ${SP_PYTHON_RUNTIME_PYTHON_ABI})
-Set(PYTHONSDK_INCLUDE    ${SP_PYTHON_RUNTIME_DIR}/build/include/python${SP_PYTHON_RUNTIME_PYTHON_ABI})
+If(NOT SP_PYTHON_RUNTIME_BOOST_INCLUDE)
+    Message(FATAL_ERROR "Python runtime ${SP_PYTHON_RUNTIME_RELEASE} has no Boost headers (manifest key boost_include); r2 or later is needed")
+EndIf()
+# Python's headers, and Boost's (the release Boost.Python was built from).
+Set(PYTHONSDK_INCLUDE
+    ${SP_PYTHON_RUNTIME_DIR}/build/include/python${SP_PYTHON_RUNTIME_PYTHON_ABI}
+    ${SP_PYTHON_RUNTIME_DIR}/${SP_PYTHON_RUNTIME_BOOST_INCLUDE}
+)
 Set(PYTHONSDK_LIB        ${SP_PYTHON_RUNTIME_DIR}/build/lib)
 # The file the loader loads from Python3/plat-<os>/ (libpython3.X.so.1.0 / python3X.dll).
 Set(PYTHONSDK_LIBPYTHON  ${SP_PYTHON_RUNTIME_LIBPYTHON})
