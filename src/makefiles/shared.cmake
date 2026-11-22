@@ -39,20 +39,6 @@ Set(DYNCALLSDK           ${THIRDPARTY_DIR}/dyncall)
 Set(DYNCALLSDK_INCLUDE   ${DYNCALLSDK}/dyncall ${DYNCALLSDK}/dynload)
 
 # ------------------------------------------------------------------
-# AsmJit specific.
-# ------------------------------------------------------------------
-Set(ASMJITSDK         ${THIRDPARTY_DIR}/AsmJit)
-Set(ASMJITSDK_INCLUDE ${ASMJITSDK}/include)
-Set(ASMJITSDK_LIB     ${ASMJITSDK}/lib)
-
-# ------------------------------------------------------------------
-# DynamicHooks specific.
-# ------------------------------------------------------------------
-Set(DYNAMICHOOKSSDK           ${THIRDPARTY_DIR}/DynamicHooks)
-Set(DYNAMICHOOKSSDK_INCLUDE   ${DYNAMICHOOKSSDK}/include)
-Set(DYNAMICHOOKSSDK_LIB       ${DYNAMICHOOKSSDK}/lib)
-
-# ------------------------------------------------------------------
 # Include directories
 # ------------------------------------------------------------------
 Include_Directories(
@@ -67,8 +53,6 @@ Include_Directories(
     ${SOURCESDK}/public/engine/protobuf
     ${DYNCALLSDK_INCLUDE}
     ${BOOSTSDK_INCLUDE}
-    ${ASMJITSDK_INCLUDE}
-    ${DYNAMICHOOKSSDK_INCLUDE}
     ${CMAKE_CURRENT_SOURCE_DIR}/core # Hack but required.
 )
 

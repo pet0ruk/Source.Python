@@ -148,13 +148,18 @@ Set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--exclude-libs,l
 Set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_NDEBUG")
 
 # ------------------------------------------------------------------
+# DynamicHooks and AsmJit, built from pinned source (after the compiler
+# flags above, which AsmJit inherits).
+# ------------------------------------------------------------------
+include("makefiles/dynamichooks/dynamichooks.cmake")
+
+# ------------------------------------------------------------------
 # Stub these out because cmake doesn't set debug/release libraries
 # correctly...
 # ------------------------------------------------------------------
 Set(SOURCEPYTHON_LINK_LIBRARIES_RELEASE
     ${PYTHONSDK_LIBS}
-    ${DYNAMICHOOKSSDK_LIB}/libDynamicHooks.a
-    ${ASMJITSDK_LIB}/libasmjit.a
+    DynamicHooks
     dyncall_s
     dynload_s
     rt
