@@ -17,9 +17,9 @@
 #      SP_PYTHON_RUNTIME_ARCHIVE  a local bundle .tar.gz to use instead
 #                                 of downloading (not checksum-verified)
 # ------------------------------------------------------------------
-Set(SP_PYTHON_RUNTIME_RELEASE  3.13.2-r1)
+Set(SP_PYTHON_RUNTIME_RELEASE  3.13.2-r2)
 Set(SP_PYTHON_RUNTIME_PLATFORM manylinux_2_28_i686)
-Set(SP_PYTHON_RUNTIME_SHA256   83a32867e816aa0f4ea95f31d025630a54b5b8bf2771237b5525c569b2a1d541)
+Set(SP_PYTHON_RUNTIME_SHA256   4e8295de0f83294e56241b7ab6bf458fe2f2f572b68cef19e5e781b8a4ccc788)
 Set(SP_PYTHON_RUNTIME_URL_BASE https://github.com/pet0ruk/source-python-runtime/releases/download)
 
 Set(SP_PYTHON_RUNTIME_NAME sp-python-${SP_PYTHON_RUNTIME_RELEASE}-${SP_PYTHON_RUNTIME_PLATFORM})

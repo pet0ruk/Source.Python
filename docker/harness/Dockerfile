@@ -26,7 +26,9 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 #   _ctypes -> libffi.so.7, _ssl/_hashlib -> libssl.so.1.1 / libcrypto.so.1.1
 COPY --from=legacy-libs /out/ /usr/lib/i386-linux-gnu/
-# L4D2 ships an old libstdc++/libgcc_s in bin/, which srcds puts first on the library path;
-# Source.Python's binaries need newer symbol versions (e.g. GLIBCXX_3.4.20) and fail to load
-# against them, so use the system copies instead (the usual fix on L4D2 servers).
-RUN rm -f /srv/srcds/bin/libstdc++.so.6 /srv/srcds/bin/libgcc_s.so.1
+# L4D2 ships an old libstdc++/libgcc_s in bin/, which srcds puts first on the library path.
+# Current builds link libstdc++ statically and don't care; older releases (v743 and earlier) need
+# newer symbol versions (e.g. GLIBCXX_3.4.20) and only load once they are removed (the usual fix
+# on L4D2 servers): REMOVE_GAME_LIBSTDCXX=1 in run.sh.
+ARG REMOVE_GAME_LIBSTDCXX=
+RUN [ -z "$REMOVE_GAME_LIBSTDCXX" ] || rm -f /srv/srcds/bin/libstdc++.so.6 /srv/srcds/bin/libgcc_s.so.1
