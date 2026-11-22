@@ -23,6 +23,7 @@
 #   OVERLAY_REPO=1  copy this repository's tracked addons/cfg/resource/sound files (as they are
 #                   in the working tree) over the release, to test Python/data changes against
 #                   prebuilt binaries without rebuilding
+#   NO_UPDATE=1     don't stage an update for the loader to apply on start (tools/stage_update.sh)
 #
 # Exit status: 0 if every check passed (skips are allowed), 1 otherwise.
 set -euo pipefail
@@ -71,6 +72,8 @@ cat > "$OUT/sp/cfg/sp_harness.cfg" <<'EOF'
 sv_hibernate_when_empty 0
 sp plugin load sp_harness
 EOF
+# an update for the loader to apply on start (update.stage2)
+[ "${NO_UPDATE:-}" = 1 ] || bash "$HERE/tools/stage_update.sh" "$OUT/sp"
 if [ "${KEEP_EXECSTACK:-}" != 1 ]; then
     python3 -I "$HERE/tools/clear_execstack.py" "$CORE"
 fi
