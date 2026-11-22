@@ -17,9 +17,11 @@ check passed; skips and known issues don't fail a run. Needs Docker, `jq` and Py
 ## What a run does
 
 1. Pulls `ghcr.io/pet0ruk/srcds:<game>` and builds `sp-harness:<game>` on top of it
-   (`Dockerfile`): adds the system libraries Source.Python's bundled Python links against
-   (libffi 7 and OpenSSL 1.1 from Ubuntu 20.04, libbz2/liblzma/libuuid/libpq from Debian) and
-   removes L4D2's bundled `libstdc++`/`libgcc_s`, which are too old for Source.Python.
+   (`Dockerfile`): adds the system libraries the Python bundled with older releases (v743 and
+   earlier) links against (libffi 7 and OpenSSL 1.1 from Ubuntu 20.04, libbz2/liblzma/libuuid/libpq
+   from Debian). With `REMOVE_GAME_LIBSTDCXX=1` it also removes L4D2's bundled
+   `libstdc++`/`libgcc_s`, which those older releases need; current builds link libstdc++
+   statically and run against the game as shipped.
 2. Stages the release (zip or directory) into `<out>/sp`, optionally overlays the repository
    (`OVERLAY_REPO=1`), adds the `sp_harness` plugin and clears the executable-stack flag on
    `core.so` (`tools/clear_execstack.py`; glibc >= 2.41 refuses to load it otherwise, set
@@ -63,7 +65,7 @@ server without humans unless `*_bot_join_after_player 0` is set; DoD:S's `bot` n
 ## Files
 
 - `run.sh` — runner; see the header for environment variables (`SRCDS_IMAGE`, `PULL`,
-  `RUNTIME=bare`, `KEEP_EXECSTACK`, `TIMEOUT`, `OVERLAY_REPO`)
+  `RUNTIME=bare`, `KEEP_EXECSTACK`, `REMOVE_GAME_LIBSTDCXX`, `TIMEOUT`, `OVERLAY_REPO`)
 - `Dockerfile` — test runtime on top of `srcds:<game>`
 - `plugin/sp_harness/sp_harness.py` — the in-server checks
 - `tools/vtdump.py` — vtable dump / gamedata check for 32-bit ELF binaries

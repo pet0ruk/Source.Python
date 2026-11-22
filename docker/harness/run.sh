@@ -15,6 +15,8 @@
 #   RUNTIME=bare    run on the srcds image as-is, without the libraries Source.Python's bundled
 #                   Python needs (docker/harness/Dockerfile); useful for testing builds that
 #                   ship their own
+#   REMOVE_GAME_LIBSTDCXX=1  remove the game's bundled libstdc++/libgcc_s (L4D2), which older
+#                   releases need to load (current ones link libstdc++ statically)
 #   KEEP_EXECSTACK=1  don't clear the executable-stack flag on core.so (glibc >= 2.41, as in
 #                   the images, then refuses to load it)
 #   TIMEOUT         seconds before the server is killed (default 240)
@@ -42,7 +44,8 @@ echo ">> image $BASE"
 IMAGE=$BASE
 if [ "${RUNTIME:-}" != bare ]; then
     IMAGE="sp-harness:$GAME"
-    docker build -q -f "$HERE/Dockerfile" --build-arg BASE="$BASE" -t "$IMAGE" "$HERE" >/dev/null
+    docker build -q -f "$HERE/Dockerfile" --build-arg BASE="$BASE" \
+        --build-arg REMOVE_GAME_LIBSTDCXX="${REMOVE_GAME_LIBSTDCXX:-}" -t "$IMAGE" "$HERE" >/dev/null
 fi
 
 echo ">> staging Source.Python from $SRC into $OUT"
