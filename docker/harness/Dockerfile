@@ -1,7 +1,9 @@
-# Test runtime: a srcds:<game> image from docker/srcds plus the system libraries that
-# Source.Python's bundled Python links against (see Python3/lib-dynload and the compiled
-# site-packages). Debian 13 no longer ships libffi 7 or OpenSSL 1.1, so those come from
-# Ubuntu 20.04's i386 packages; the rest are current Debian packages.
+# Test runtime: a srcds:<game> image from docker/srcds plus the system libraries that the Linux
+# Python bundled with older Source.Python releases (up to v743, before the runtime from
+# source-python-runtime) links against: its lib-dynload modules and compiled site-packages.
+# Debian 13 no longer ships libffi 7 or OpenSSL 1.1, so those come from Ubuntu 20.04's i386
+# packages; the rest are current Debian packages. Builds with the new runtime need none of them
+# (RUNTIME=bare in run.sh tests that).
 #
 #   docker build -f docker/harness/Dockerfile docker/harness \
 #     --build-arg BASE=ghcr.io/<owner>/srcds:tf2 -t sp-harness:tf2

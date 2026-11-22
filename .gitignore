@@ -57,3 +57,13 @@ addons/source-python/docs/plugins/
 
 # docker/harness/run.sh default output
 /sp-harness-out/
+
+# Linux Python runtime (from source-python-runtime; laid over the tree when building releases,
+# see src/makefiles/linux/python-runtime.cmake): never vendor it here again
+addons/source-python/Python3/lib-dynload/
+addons/source-python/Python3/plat-linux/
+addons/source-python/packages/site-packages/_sysconfigdata__linux_*.py
+addons/source-python/packages/site-packages/**/*-linux-gnu.so
+addons/source-python/packages/site-packages/psycopg2/
+addons/source-python/packages/site-packages/psycopg2.libs/
+src/thirdparty/python_linux/
