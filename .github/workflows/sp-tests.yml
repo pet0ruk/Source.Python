@@ -13,13 +13,19 @@ on:
         type: choice
         default: all
         options: [all, tf2, css, dods, hl2dm, l4d2]
+      platform:
+        description: Platform to test
+        required: true
+        type: choice
+        default: all
+        options: [all, linux, windows]
 
 permissions:
   contents: read
   packages: read
 
 concurrency:
-  group: sp-tests-${{ github.event.pull_request.number || github.ref }}-${{ inputs.game || 'all' }}
+  group: sp-tests-${{ github.event.pull_request.number || github.ref }}-${{ inputs.game || 'all' }}-${{ inputs.platform || 'all' }}
   cancel-in-progress: true
 
 jobs:
@@ -27,12 +33,20 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       list: ${{ steps.list.outputs.list }}
+      linux: ${{ steps.list.outputs.linux }}
+      windows: ${{ steps.list.outputs.windows }}
     steps:
       - uses: actions/checkout@v7 # v7.0.1
       - id: list
         env:
           GAME: ${{ inputs.game || 'all' }}
+          PLATFORM: ${{ inputs.platform || 'all' }}
         run: |
+          # TEMPORARY (while getting Windows working, remove before merging): pull requests only
+          # run TF2 on Windows; use a manual run (workflow_dispatch) for anything else.
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then GAME=tf2 PLATFORM=windows; fi
+          echo "linux=$([ "$PLATFORM" != windows ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "windows=$([ "$PLATFORM" != linux ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
           if [ "$GAME" = all ]; then
             echo "list=$(jq -c keys_unsorted docker/srcds/games.json)" >> "$GITHUB_OUTPUT"
           else
@@ -41,6 +55,7 @@ jobs:
 
   test:
     needs: games
+    if: needs.games.outputs.linux == 'true'
     name: test (${{ matrix.game }})
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -105,6 +120,7 @@ jobs:
   # Git Bash; OUT is the POSIX form of the runner's temp dir, the artifact paths its Windows form.
   test-windows:
     needs: games
+    if: needs.games.outputs.windows == 'true'
     name: test-windows (${{ matrix.game }})
     runs-on: windows-latest
     timeout-minutes: 60
