@@ -15,7 +15,7 @@
 #   HL2SDK_REV   hl2sdk commit/branch to build against (default: the branch head, like Build.sh)
 #   JOBS         parallel compile jobs (default: nproc; each Boost.Python unit needs 1-2 GB RAM)
 #   SP_PYTHON_RUNTIME_ARCHIVE  local Python runtime bundle (.tar.gz) to build and ship with,
-#                instead of the release pinned in src/makefiles/linux/python-runtime.cmake
+#                instead of the release pinned in src/makefiles/python-runtime.cmake
 #
 # Only tracked files are used (as they are in the working tree), so local build outputs and
 # SDK checkouts under src/ don't leak in. Building happens in <out-dir>/work.
@@ -87,25 +87,7 @@ git -C "$REPO" ls-files -z addons cfg logs resource sound | (cd "$REPO" && tar -
     | tar -x -C "$OUT/release"
 # The Python runtime replaces the repository's vendored Linux Python: its Python3/ (stdlib,
 # lib-dynload, plat-linux) and its compiled site-packages.
-RT=$B/python-runtime
-# Its compiled packages replace the vendored copies (which Windows still uses), so the versions
-# must agree with site-packages/requirements.txt.
-REQ=$REPO/addons/source-python/packages/site-packages/requirements.txt
-for pkg in greenlet psycopg2 markupsafe charset_normalizer; do
-    have=$(sed -n "s/^$pkg=//p" "$RT/manifest.txt")
-    want=$(tr 'A-Z-' 'a-z_' < "$REQ" | sed -n "s/^$pkg==//p")
-    if [ -n "$want" ] && [ "$have" != "$want" ]; then
-        echo "!! python runtime has $pkg $have, requirements.txt says $want" >&2; exit 1
-    fi
-done
-rm -rf "$OUT/release/addons/source-python/Python3"
-rm -f "$OUT/release/addons/source-python/packages/site-packages"/_sysconfigdata_*.py
-for p in "$RT/runtime/addons/source-python/packages/site-packages"/*; do
-    rm -rf "$OUT/release/addons/source-python/packages/site-packages/$(basename "$p")"
-done
-cp -a "$RT/runtime/." "$OUT/release/"
-cp "$RT/manifest.txt" "$OUT/python-runtime.txt"
-echo "   python runtime $(sed -n 's/^release=//p' "$RT/manifest.txt") ($(sed -n 's/^platform=//p' "$RT/manifest.txt"))"
+"$HERE/stage-python-runtime.sh" "$B/python-runtime" "$OUT/release" "$OUT"
 cp "$B/source-python.so" "$OUT/release/addons/"
 mkdir -p "$OUT/release/addons/source-python/bin"
 cp "$B/core.so" "$OUT/release/addons/source-python/bin/"

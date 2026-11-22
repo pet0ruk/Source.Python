@@ -319,7 +319,8 @@ def check_site_packages_native(modules=None):
 
 
 def check_site_packages_speedups():
-    return check_site_packages_native(('markupsafe._speedups', 'charset_normalizer.md'))
+    return check_site_packages_native(('markupsafe._speedups', 'charset_normalizer.md',
+                                       'sqlalchemy.cyextension.collections'))
 
 
 def check_entity_create():

@@ -29,8 +29,10 @@
 //---------------------------------------------------------------------------------
 // Definitions
 //---------------------------------------------------------------------------------
-#define PYLIB_NAME_WIN32	"Python3/plat-win/python313.dll"
-// SP_LIBPYTHON_LINUX comes from the Python runtime's manifest (makefiles/linux/python-runtime.cmake).
+// SP_LIBPYTHON_WIN32/_LINUX come from the Python runtime's manifest (makefiles/python-runtime.cmake).
+#ifdef SP_LIBPYTHON_WIN32
+#	define PYLIB_NAME_WIN32	"Python3/plat-win/" SP_LIBPYTHON_WIN32
+#endif
 #ifdef SP_LIBPYTHON_LINUX
 #	define PYLIB_NAME_LINUX	"Python3/plat-linux/" SP_LIBPYTHON_LINUX
 #endif

@@ -1,7 +1,7 @@
 # ------------------------------------------------------------------
-# File: src/makefiles/linux/python-runtime.cmake
+# File: src/makefiles/python-runtime.cmake
 # Purpose: Provides the Python runtime Source.Python is built against
-#    and shipped with on Linux: a bundle from
+#    and shipped with (Linux and Windows): a bundle from
 #    https://github.com/pet0ruk/source-python-runtime (CPython, the
 #    compiled site-packages and Boost.Python built for that exact
 #    interpreter), pinned below by release and sha256.
@@ -13,13 +13,23 @@
 #                                compiled site-packages)
 #      manifest.txt              versions (python_abi, libpython, ...)
 #
+#    One release, one asset per platform (Linux .tar.gz, Windows .zip),
+#    each pinned by its sha256 (the release's SHA256SUMS).
+#
 #    Overrides (cmake -D...):
-#      SP_PYTHON_RUNTIME_ARCHIVE  a local bundle .tar.gz to use instead
+#      SP_PYTHON_RUNTIME_ARCHIVE  a local bundle archive to use instead
 #                                 of downloading (not checksum-verified)
 # ------------------------------------------------------------------
-Set(SP_PYTHON_RUNTIME_RELEASE  3.13.2-r2)
-Set(SP_PYTHON_RUNTIME_PLATFORM manylinux_2_28_i686)
-Set(SP_PYTHON_RUNTIME_SHA256   4e8295de0f83294e56241b7ab6bf458fe2f2f572b68cef19e5e781b8a4ccc788)
+Set(SP_PYTHON_RUNTIME_RELEASE  3.13.2-r3)
+If(WIN32)
+    Set(SP_PYTHON_RUNTIME_PLATFORM win32)
+    Set(SP_PYTHON_RUNTIME_EXT      zip)
+    Set(SP_PYTHON_RUNTIME_SHA256   46cf17cd7bb192d2c30e6e84726accdfa457d9ff9f677bb846ca15756dd9e912)
+Else()
+    Set(SP_PYTHON_RUNTIME_PLATFORM manylinux_2_28_i686)
+    Set(SP_PYTHON_RUNTIME_EXT      tar.gz)
+    Set(SP_PYTHON_RUNTIME_SHA256   1af2a47c724a216c576cd3b646a23011ab967340ee61a844db55f83e7240659a)
+EndIf()
 Set(SP_PYTHON_RUNTIME_URL_BASE https://github.com/pet0ruk/source-python-runtime/releases/download)
 
 Set(SP_PYTHON_RUNTIME_NAME sp-python-${SP_PYTHON_RUNTIME_RELEASE}-${SP_PYTHON_RUNTIME_PLATFORM})
@@ -29,8 +39,8 @@ If(SP_PYTHON_RUNTIME_ARCHIVE)
     Set(_archive ${SP_PYTHON_RUNTIME_ARCHIVE})
     Message(STATUS "Python runtime: ${_archive} (local, not verified)")
 Else()
-    Set(_archive ${CMAKE_BINARY_DIR}/${SP_PYTHON_RUNTIME_NAME}.tar.gz)
-    Set(_url ${SP_PYTHON_RUNTIME_URL_BASE}/${SP_PYTHON_RUNTIME_RELEASE}/${SP_PYTHON_RUNTIME_NAME}.tar.gz)
+    Set(_archive ${CMAKE_BINARY_DIR}/${SP_PYTHON_RUNTIME_NAME}.${SP_PYTHON_RUNTIME_EXT})
+    Set(_url ${SP_PYTHON_RUNTIME_URL_BASE}/${SP_PYTHON_RUNTIME_RELEASE}/${SP_PYTHON_RUNTIME_NAME}.${SP_PYTHON_RUNTIME_EXT})
     If(NOT EXISTS ${_archive})
         Message(STATUS "Python runtime: downloading ${_url}")
         File(DOWNLOAD ${_url} ${_archive}.part
@@ -65,7 +75,7 @@ If(_unpack)
     File(REMOVE_RECURSE ${SP_PYTHON_RUNTIME_DIR} ${CMAKE_BINARY_DIR}/python-runtime.tmp)
     File(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/python-runtime.tmp)
     Execute_Process(
-        COMMAND ${CMAKE_COMMAND} -E tar xzf ${_archive}
+        COMMAND ${CMAKE_COMMAND} -E tar xf ${_archive}
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/python-runtime.tmp
         RESULT_VARIABLE _rc
     )
@@ -92,9 +102,17 @@ Message(STATUS "Python runtime: ${SP_PYTHON_RUNTIME_RELEASE} (Python ${SP_PYTHON
 String(REPLACE "." "" _pyn ${SP_PYTHON_RUNTIME_PYTHON_ABI})
 Set(PYTHONSDK_INCLUDE    ${SP_PYTHON_RUNTIME_DIR}/build/include/python${SP_PYTHON_RUNTIME_PYTHON_ABI})
 Set(PYTHONSDK_LIB        ${SP_PYTHON_RUNTIME_DIR}/build/lib)
+# The file the loader loads from Python3/plat-<os>/ (libpython3.X.so.1.0 / python3X.dll).
 Set(PYTHONSDK_LIBPYTHON  ${SP_PYTHON_RUNTIME_LIBPYTHON})
-Set(PYTHONSDK_LIBS
-    ${PYTHONSDK_LIB}/libpython${SP_PYTHON_RUNTIME_PYTHON_ABI}.a
-    ${PYTHONSDK_LIB}/${SP_PYTHON_RUNTIME_LIBPYTHON}
-    ${PYTHONSDK_LIB}/libboost_python${_pyn}.a
-)
+If(WIN32)
+    Set(PYTHONSDK_LIBS
+        ${PYTHONSDK_LIB}/${SP_PYTHON_RUNTIME_PYTHON_LIB}
+        ${PYTHONSDK_LIB}/${SP_PYTHON_RUNTIME_BOOST_PYTHON_LIB}
+    )
+Else()
+    Set(PYTHONSDK_LIBS
+        ${PYTHONSDK_LIB}/libpython${SP_PYTHON_RUNTIME_PYTHON_ABI}.a
+        ${PYTHONSDK_LIB}/${SP_PYTHON_RUNTIME_LIBPYTHON}
+        ${PYTHONSDK_LIB}/libboost_python${_pyn}.a
+    )
+EndIf()

@@ -20,7 +20,7 @@ Endif(NOT CMAKE_BUILD_TYPE)
 # ------------------------------------------------------------------
 # Python runtime (headers, libpython, Boost.Python)
 # ------------------------------------------------------------------
-include("makefiles/linux/python-runtime.cmake")
+include("makefiles/python-runtime.cmake")
 
 # The loader dlopens Python3/plat-linux/<this>.
 Add_Definitions(-DSP_LIBPYTHON_LINUX="${PYTHONSDK_LIBPYTHON}")
