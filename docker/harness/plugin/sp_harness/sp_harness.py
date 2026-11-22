@@ -288,7 +288,11 @@ def phase_static():
 def check_stdlib_native():
     import bz2, ctypes, hashlib, lzma, sqlite3, ssl, uuid, zlib  # noqa: F401,E401
     ssl.create_default_context()
-    sqlite3.connect(':memory:').execute('select 1').fetchone()
+    connection = sqlite3.connect(':memory:')
+    try:
+        connection.execute('select 1').fetchone()
+    finally:
+        connection.close()
     ctypes.CDLL(None) if PLATFORM == 'linux' else ctypes.WinDLL('kernel32')
     return {'openssl': ssl.OPENSSL_VERSION, 'sqlite': sqlite3.sqlite_version}
 

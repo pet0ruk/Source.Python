@@ -71,12 +71,25 @@ echo 'not available on Windows (server.dll has no symbols)' > "$OUT/gamedata-vta
 echo skip > "$OUT/gamedata-vtables.rc"
 
 echo ">> running $GAME_DIR on $MAP (timeout ${TIMEOUT}s)"
+# srcds.exe -console needs a real console as its input ("CTextConsoleWin32::GetLine:
+# !GetNumberOfConsoleInputEvents" otherwise, then it hangs), so it gets a console of its own via
+# Start-Process instead of Git Bash's pipes; its output goes to console.log (-condebug), which is
+# also copied to srcds_run.log. On a timeout the process tree is killed and the exit code is 124.
 set +e
-(cd "$SERVER_DIR" && timeout -k 10 "$TIMEOUT" ./srcds.exe -console -game "$GAME_DIR" -condebug \
-    -norestart -insecure -nohltv +sv_lan 1 +sv_hibernate_when_empty 0 +maxplayers 8 \
-    +map "$MAP" +exec sp_harness.cfg) > "$OUT/srcds_run.log" 2>&1
+SERVER_WIN=$(cygpath -w "$SERVER_DIR")
+ARGS="-console -game $GAME_DIR -condebug -norestart -insecure -nohltv +sv_lan 1 +sv_hibernate_when_empty 0 +maxplayers 8 +map $MAP +exec sp_harness.cfg"
+powershell.exe -NoProfile -NonInteractive -Command "
+    \$p = Start-Process -FilePath (Join-Path '$SERVER_WIN' 'srcds.exe') -WorkingDirectory '$SERVER_WIN' \
+         -ArgumentList '$ARGS' -PassThru
+    if (-not \$p.WaitForExit(${TIMEOUT}000)) {
+        & taskkill.exe /T /F /PID \$p.Id | Out-Null
+        exit 124
+    }
+    exit \$p.ExitCode" > "$OUT/powershell.log" 2>&1
 echo $? > "$OUT/srcds.rc"
 cp "$G/console.log" "$OUT/console.log" 2>/dev/null
+cp "$G/console.log" "$OUT/srcds_run.log" 2>/dev/null
+cat "$OUT/powershell.log" >> "$OUT/srcds_run.log" 2>/dev/null
 cp "$G/logs/sp_harness.json" "$OUT/results.json" 2>/dev/null
 cp -r "$G/logs/source-python" "$OUT/source-python-logs" 2>/dev/null
 set -e
