@@ -14,18 +14,25 @@
 # Env:
 #   HL2SDK_REV   hl2sdk commit/branch to build against (default: the branch head, like Build.sh)
 #   JOBS         parallel compile jobs (default: nproc; each Boost.Python unit needs 1-2 GB RAM)
-#   CCACHE_DIR   host directory for ccache (optional; speeds up rebuilds)
 #   SP_PYTHON_RUNTIME_ARCHIVE  local Python runtime bundle (.tar.gz) to build and ship with,
 #                instead of the release pinned in src/makefiles/linux/python-runtime.cmake
 #
 # Only tracked files are used (as they are in the working tree), so local build outputs and
 # SDK checkouts under src/ don't leak in. Building happens in <out-dir>/work.
+#
+# The build runs in manylinux_2_28 (AlmaLinux 8, glibc 2.28) with gcc-toolset's GCC 14, which
+# links the C++ features newer than the system libstdc++ 8 statically: the binaries need only
+# glibc 2.28 and libstdc++ 8's symbol versions, like the Python runtime they embed. The image's
+# userland is 32-bit, and 32-bit glibc creates sockets with socketcall(2), which Docker's default
+# seccomp profile refuses (Docker 29.4 on GitHub's runners), so the container runs without
+# seccomp; that's also why it isn't a Dockerfile (docker build can't turn seccomp off).
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 REPO=$(git -C "$HERE" rev-parse --show-toplevel)
 BRANCH=${1:?usage: build.sh <branch> <out-dir>}
 OUT=$(realpath -m "${2:?usage: build.sh <branch> <out-dir>}")
 JOBS=${JOBS:-$(nproc)}
+BUILD_IMAGE=quay.io/pypa/manylinux_2_28_i686@sha256:baf927c001d9dfead35e53de68b2c113b623155b7a878cc45e2e1ad61c9fb5e7
 [ -f "$REPO/src/makefiles/branch/$BRANCH.cmake" ] || { echo "unknown branch '$BRANCH'" >&2; exit 2; }
 
 WORK=$OUT/work
@@ -49,26 +56,22 @@ if [ -d "$WORK/src/patches/$BRANCH" ]; then
 fi
 
 echo ">> building $BRANCH with $JOBS jobs"
-docker build -q -t sp-build "$HERE" >/dev/null
-cache_args=()
 cmake_args=()
 if [ -n "${SP_PYTHON_RUNTIME_ARCHIVE:-}" ]; then
     cp "$SP_PYTHON_RUNTIME_ARCHIVE" "$WORK/python-runtime.tar.gz"
     cmake_args+=(-DSP_PYTHON_RUNTIME_ARCHIVE=/work/python-runtime.tar.gz)
 fi
-if [ -n "${CCACHE_DIR:-}" ]; then
-    mkdir -p "$CCACHE_DIR"
-    cache_args=(-v "$(realpath "$CCACHE_DIR"):/ccache" -e CCACHE_DIR=/ccache
-                -e CCACHE_BASEDIR=/work -e CCACHE_NOHASHDIR=1)
-    cmake_args+=(-DCMAKE_CXX_COMPILER_LAUNCHER=ccache)
-fi
+# In the container: build as the calling user.
+cat > "$WORK/build-in-container.sh" <<EOF
+set -e
+groupadd -o -g "$(id -g)" builder
+useradd -o -u "$(id -u)" -g "$(id -g)" -M -d /tmp builder
+exec runuser -u builder -- env HOME=/tmp bash -ec '
+    cmake . -BBuilds/Linux/$BRANCH -DBRANCH=$BRANCH ${cmake_args[*]}
+    make -C Builds/Linux/$BRANCH -j$JOBS'
+EOF
 set +e
-docker run --rm -u "$(id -u):$(id -g)" -v "$WORK:/work" -w /work/src "${cache_args[@]}" \
-    sp-build bash -c "
-        set -e
-        cmake . -BBuilds/Linux/$BRANCH -DBRANCH=$BRANCH ${cmake_args[*]}
-        make -C Builds/Linux/$BRANCH -j$JOBS
-        [ -z \"\${CCACHE_DIR:-}\" ] || ccache -s" > "$OUT/build.log" 2>&1
+docker run --rm --security-opt seccomp=unconfined -v "$WORK:/work" -w /work/src "$BUILD_IMAGE" bash /work/build-in-container.sh > "$OUT/build.log" 2>&1
 rc=$?
 set -e
 if [ $rc != 0 ]; then
@@ -77,7 +80,6 @@ if [ $rc != 0 ]; then
     tail -20 "$OUT/build.log" >&2
     exit 1
 fi
-grep -A12 "^cache directory\|^Summary:" "$OUT/build.log" | grep -iE "hit|miss" | head -4 || true
 
 echo ">> staging $OUT/release"
 B=$WORK/src/Builds/Linux/$BRANCH
