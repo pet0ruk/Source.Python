@@ -3,10 +3,17 @@
 # Runs inside the "download" stage of docker/srcds/Dockerfile.
 #
 # Env: APP_ID (server app), GAME_DIR (mod dir, e.g. tf), KEEP_MAP (map to keep, no extension),
+#      PLATFORM (linux (default) or windows: which server build steamcmd downloads),
 #      REQUIRED_VERSION (optional; if set, must equal the version in <GAME_DIR>/steam.inf
-#      unless VERIFY_VERSION=0), WINDOWS_FIRST (1 = install as Windows first, for L4D2).
+#      unless VERIFY_VERSION=0), WINDOWS_FIRST (1 = install as Windows first, for L4D2's
+#      Linux build; ignored for PLATFORM=windows).
 set -euo pipefail
 : "${APP_ID:?}" "${GAME_DIR:?}" "${KEEP_MAP:?}"
+PLATFORM=${PLATFORM:-linux}
+case "$PLATFORM" in
+    linux|windows) ;;
+    *) echo "!! PLATFORM must be linux or windows, not '$PLATFORM'" >&2; exit 1 ;;
+esac
 DIR=/srv/srcds
 MANIFEST="$DIR/steamapps/appmanifest_$APP_ID.acf"
 
@@ -15,14 +22,14 @@ steamcmd +login anonymous +quit >/dev/null 2>&1 || true
 
 # L4D2's Linux depots fail with "Invalid platform" on a fresh install unless the app is first
 # installed with the platform forced to Windows (then updated/validated as Linux below).
-if [ "${WINDOWS_FIRST:-}" = 1 ]; then
+if [ "$PLATFORM" = linux ] && [ "${WINDOWS_FIRST:-}" = 1 ]; then
     steamcmd +@sSteamCmdForcePlatformType windows +force_install_dir "$DIR" +login anonymous \
         +app_update "$APP_ID" +quit || true
 fi
 
 # steamcmd's exit status is unreliable, so retry until the manifest says "fully installed" (4).
 for attempt in 1 2 3 4 5; do
-    steamcmd +@sSteamCmdForcePlatformType linux +force_install_dir "$DIR" +login anonymous \
+    steamcmd +@sSteamCmdForcePlatformType "$PLATFORM" +force_install_dir "$DIR" +login anonymous \
         +app_update "$APP_ID" validate +quit || true
     if grep -Eq '"StateFlags"[[:space:]]+"4"' "$MANIFEST" 2>/dev/null; then
         break
@@ -36,7 +43,7 @@ for attempt in 1 2 3 4 5; do
 done
 
 BUILD_ID=$(sed -nE 's/^[[:space:]]*"buildid"[[:space:]]+"([0-9]+)".*/\1/p' "$MANIFEST" | head -1)
-echo ">> installed app $APP_ID buildid $BUILD_ID: $(du -sh "$DIR" | cut -f1)"
+echo ">> installed app $APP_ID ($PLATFORM) buildid $BUILD_ID: $(du -sh "$DIR" | cut -f1)"
 
 # Keep only $KEEP_MAP.* in every top-level */maps dir (subdirectories such as graphs/ or
 # soundcache/ are left alone). Maps that live inside VPKs are unaffected.
@@ -70,5 +77,5 @@ if [ "${VERIFY_VERSION:-1}" != 0 ] && [ -n "${REQUIRED_VERSION:-}" ] \
     exit 1
 fi
 
-printf 'APP_ID=%s\nBUILD_ID=%s\nVERSION=%s\nMAP=%s\n' "$APP_ID" "$BUILD_ID" "$VERSION" "$KEEP_MAP" \
-    > "$DIR/.srcds-image"
+printf 'APP_ID=%s\nPLATFORM=%s\nBUILD_ID=%s\nVERSION=%s\nMAP=%s\n' \
+    "$APP_ID" "$PLATFORM" "$BUILD_ID" "$VERSION" "$KEEP_MAP" > "$DIR/.srcds-image"

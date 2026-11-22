@@ -1,8 +1,10 @@
 # Builds minimal Source dedicated server images for testing (server from steamcmd, one map),
-# pushed to ghcr.io/<owner>/srcds as <game> (moving) and <game>-<UTC stamp>. After a push, the
-# previous image of that game (left with only its dated tag) is deleted from the package.
-# Per-game settings live in docker/srcds/games.json; docker/srcds/plan.sh decides what to build
-# by comparing Steam's required version with the steam.required_version label on :<game>.
+# pushed to ghcr.io/<owner>/srcds as <tag> (moving) and <tag>-<UTC stamp>, where <tag> is
+# <game> for the runnable Linux server and <game>-windows for the Windows server files (a
+# files-only image for Windows runners; see the targets in docker/srcds/Dockerfile). After a
+# push, the previous image of that tag (left with only its dated tag) is deleted from the
+# package. Per-game settings live in docker/srcds/games.json; docker/srcds/plan.sh decides what
+# to build by comparing Steam's required version with the steam.required_version label on :<tag>.
 name: srcds test images
 
 on:
@@ -16,6 +18,12 @@ on:
         type: choice
         default: all
         options: [all, tf2, css, dods, hl2dm, l4d2]
+      platform:
+        description: Platform to build
+        required: true
+        type: choice
+        default: all
+        options: [all, linux, windows]
       force:
         description: Force build (skip the version check)
         type: boolean
@@ -50,6 +58,7 @@ jobs:
         id: plan
         env:
           GAME: ${{ inputs.game || 'all' }}
+          PLATFORM: ${{ inputs.platform || 'all' }}
           FORCE: ${{ inputs.force || false }}
           OWNER: ${{ github.repository_owner }}
           REGISTRY_USER: ${{ github.actor }}
@@ -59,7 +68,7 @@ jobs:
   build:
     needs: plan
     if: needs.plan.outputs.count != '0'
-    name: build (${{ matrix.game }})
+    name: build (${{ matrix.tag }})
     runs-on: ubuntu-latest
     timeout-minutes: 120
     permissions:
@@ -118,6 +127,7 @@ jobs:
         with:
           context: docker/srcds
           file: docker/srcds/Dockerfile
+          target: ${{ matrix.platform }}
           push: true
           provenance: false
           tags: ${{ matrix.tags }}
@@ -133,25 +143,26 @@ jobs:
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
 
-      - name: Delete previous ${{ matrix.game }} images
+      - name: Delete previous ${{ matrix.tag }} images
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OWNER: ${{ github.repository_owner }}
           OWNER_TYPE: ${{ github.event.repository.owner.type }}
-          GAME: ${{ matrix.game }}
-          KEEP: ${{ matrix.game }}-${{ matrix.stamp }}
+          TAG: ${{ matrix.tag }}
+          KEEP: ${{ matrix.tag }}-${{ matrix.stamp }}
         run: |
           set -euo pipefail
           scope=users; [ "$OWNER_TYPE" = Organization ] && scope=orgs
           base="/$scope/$OWNER/packages/container/$IMAGE/versions"
-          # Old images of this game: a "<game>-<stamp>" tag, but neither "<game>" nor this
-          # run's stamp (both of which are on the image just pushed).
-          ids=$(gh api --paginate "$base" | jq -r --arg g "$GAME" --arg keep "$KEEP" '
-            .[] | select(.metadata.container.tags as $t
-                         | ($t | index($g) | not) and ($t | index($keep) | not)
-                           and any($t[]; startswith($g + "-")))
+          # Old images of this tag: a "<tag>-<stamp>" tag (exactly; "tf2-<stamp>" must not
+          # match "tf2-windows-<stamp>"), but neither "<tag>" nor this run's stamp (both of
+          # which are on the image just pushed).
+          ids=$(gh api --paginate "$base" | jq -r --arg t "$TAG" --arg keep "$KEEP" '
+            .[] | select(.metadata.container.tags as $tags
+                         | ($tags | index($t) | not) and ($tags | index($keep) | not)
+                           and any($tags[]; test("^" + $t + "-[0-9]{8}-[0-9]{6}$")))
                 | "\(.id) \(.metadata.container.tags | join(","))"')
-          if [ -z "$ids" ]; then echo "no previous $GAME images"; fi
+          if [ -z "$ids" ]; then echo "no previous $TAG images"; fi
           while read -r id tags; do
             [ -n "$id" ] || continue
             echo "deleting version $id ($tags)"
