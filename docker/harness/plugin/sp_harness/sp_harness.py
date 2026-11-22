@@ -266,6 +266,7 @@ def phase_static():
     check('memory.gamedata_functions', check_gamedata_functions)
     check('memory.make_function', check_make_function)
     check('memory.vtable_pointer', check_vtable_pointer)
+    check('memory.callback_bool', check_callback_bool)
 
     check('cvars.find_var', lambda: expect(
         __import__('cvars').cvar.find_var('sv_gravity') is not None, 'sv_gravity not found'))
@@ -446,6 +447,25 @@ def check_vtable_pointer():
     expect(vtable.get_pointer(4 * slot).address == teleport,
            f'slot {slot} is not CBaseEntity::Teleport')
     return f'teleport slot {slot}'
+
+
+def check_callback_bool():
+    """A native function returning BOOL, called through dyncall: the value is read from one
+    byte (upstream #419; dyncall's DC_BOOL), and BOOL arguments arrive as passed. The function
+    is a memory.Callback, which DynamicHooks creates, so both libraries are exercised."""
+    from memory import Callback, Convention, DataType
+    seen = []
+
+    @Callback(Convention.CDECL, (DataType.INT, DataType.BOOL, DataType.INT, DataType.BOOL),
+              DataType.BOOL)
+    def callback(stack_data):
+        seen.append(tuple(stack_data))
+        return bool(stack_data[0])
+
+    results = (callback(0, True, 2, False), callback(1, False, -27648, True))
+    expect(results == (False, True), f'returned {results}')
+    expect(seen == [(0, True, 2, False), (1, False, -27648, True)], f'arguments {seen}')
+    return results
 
 
 def check_convar():

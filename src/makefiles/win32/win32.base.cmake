@@ -15,6 +15,9 @@ include("makefiles/shared.cmake")
 # ------------------------------------------------------------------
 include("makefiles/python-runtime.cmake")
 
+# dyncall_s and dynload_s, built from thirdparty/dyncall.
+include("makefiles/dyncall/dyncall.cmake")
+
 # The loader loads Python3/plat-win/<this>.
 Add_Compile_Definitions(SP_LIBPYTHON_WIN32="${PYTHONSDK_LIBPYTHON}")
 
@@ -52,9 +55,8 @@ SET(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} /SAFESEH:NO")
 # ------------------------------------------------------------------
 Set(SOURCEPYTHON_LINK_LIBRARIES
     ${SOURCEPYTHON_LINK_LIBRARIES}
-    ${DYNCALLSDK_LIB}/libdyncall_s.lib
-    ${DYNCALLSDK_LIB}/libdyncallback_s.lib
-    ${DYNCALLSDK_LIB}/libdynload_s.lib
+    dyncall_s
+    dynload_s
     ${ASMJITSDK_LIB}/AsmJit.lib
     ${DYNAMICHOOKSSDK_LIB}/DynamicHooks.lib
     ${BOOSTSDK_LIB}/libboost_filesystem-vc143-mt-s-x32-1_87.lib
