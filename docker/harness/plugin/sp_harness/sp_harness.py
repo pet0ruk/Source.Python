@@ -33,14 +33,24 @@ from entities.entity import Entity
 from entities.hooks import EntityCondition
 from entities.hooks import EntityPostHook
 from entities.hooks import EntityPreHook
+#   Commands
+from commands import CommandReturn
+from commands.client import ClientCommand
+from commands.server import ServerCommand
 #   Events
 from events import Event
+from events.custom import CustomEvent
 from events.hooks import PreEvent
+from events.resource import ResourceFile
+from events.variable import ShortVariable
+from events.variable import StringVariable
 #   Filters
 from filters.players import PlayerIter
 #   Listeners
 from listeners import OnClientActive
 from listeners import OnConVarChanged
+from listeners import OnLevelInit
+from listeners import OnLevelShutdown
 from listeners import OnTick
 from listeners.tick import Delay
 from listeners.tick import Repeat
@@ -49,8 +59,6 @@ from mathlib import Vector
 #   Paths
 from paths import GAME_PATH
 from paths import SP_DATA_PATH
-#   Commands
-from commands.server import ServerCommand
 
 
 # =============================================================================
@@ -105,9 +113,25 @@ COUNTS = dict.fromkeys((
     'entity_pre_hook.pre_think', 'entity_post_hook.post_think', 'entity_pre_hook.run_command',
     'entity_pre_hook.on_take_damage', 'event.player_spawn', 'pre_event.player_spawn',
     'listener.on_tick', 'listener.on_client_active', 'listener.on_convar_changed',
-    'server_command', 'delay', 'repeat'), 0)
+    'listener.on_level_shutdown', 'listener.on_level_init', 'server_command', 'delay',
+    'repeat'), 0)
+#: Exact counts expected for some of COUNTS (the others only need to be > 0).
+EXACT_COUNTS = {'delay': 1, 'repeat': 3}
 #: Event variables captured from the first player_spawn (see check_event_variables).
 SPAWN_EVENTS = []
+#: (name, old value, new value) for each OnConVarChanged of the harness's convars.
+CONVAR_CHANGES = []
+#: (index, arguments) of each sp_harness_client command a bot was made to run.
+CLIENT_COMMANDS = []
+#: (number, text) of each sp_harness_event received.
+CUSTOM_EVENTS = []
+#: Map names seen by OnLevelInit.
+LEVEL_INITS = []
+#: Level shutdowns/inits from the harness's changelevel on (the plugin is loaded before the
+#: server's first map has finished loading, so that map's own are counted in COUNTS too).
+MAP_CHANGE = {'started': False, 'shutdowns': 0, 'inits': []}
+#: The file added to the downloadables table (checked again after the map change).
+DOWNLOADABLE = 'sound/sp_harness/none.wav'
 
 
 # =============================================================================
@@ -223,6 +247,41 @@ def _on_client_active(index):
 def _on_convar_changed(convar, old_value):
     if convar.name in ('sp_harness_var', 'sv_gravity'):
         COUNTS['listener.on_convar_changed'] += 1
+        CONVAR_CHANGES.append((convar.name, old_value, convar.get_string()))
+
+
+@OnLevelShutdown
+def _on_level_shutdown():
+    COUNTS['listener.on_level_shutdown'] += 1
+    if MAP_CHANGE['started']:
+        MAP_CHANGE['shutdowns'] += 1
+
+
+@OnLevelInit
+def _on_level_init(map_name):
+    COUNTS['listener.on_level_init'] += 1
+    LEVEL_INITS.append(map_name)
+    if MAP_CHANGE['started']:
+        MAP_CHANGE['inits'].append(map_name)
+
+
+@ClientCommand('sp_harness_client')
+def _client_command(command, index):
+    CLIENT_COMMANDS.append((index, command.arg_string))
+    return CommandReturn.BLOCK
+
+
+class Sp_Harness_Event(CustomEvent):
+    """A custom game event (resource/source-python/events/sp_harness.res)."""
+
+    number = ShortVariable('a number')
+    text = StringVariable('a string')
+
+
+def _on_custom_event(game_event):
+    """Registered once the event is loaded (check_custom_event_load); the engine doesn't know
+    it before."""
+    CUSTOM_EVENTS.append((game_event['number'], game_event['text']))
 
 
 @ServerCommand('sp_harness_command')
@@ -275,6 +334,8 @@ def phase_static():
     check('keyvalues.roundtrip', check_keyvalues)
     check('commands.server_command', check_server_command)
     check('stringtables.downloadables', check_stringtables)
+    check('events.custom_event_load', check_custom_event_load)
+    fire_custom_event(1, 'before')
     check('engines.precache_model', check_precache)
     check('effects.temp_entity_properties', check_temp_entity)
 
@@ -509,11 +570,46 @@ def check_server_command():
     expect(COUNTS['server_command'] == 1, COUNTS['server_command'])
 
 
+DOWNLOADABLES = None
+
+
 def check_stringtables():
+    """Downloadables().add() puts the file into the engine's downloadables string table."""
+    global DOWNLOADABLES
     from stringtables import string_tables
     from stringtables.downloads import Downloadables
-    expect(string_tables['downloadables'] is not None, 'no downloadables table')
-    Downloadables().add('sound/sp_harness/none.wav')
+    table = string_tables['downloadables']
+    expect(table is not None, 'no downloadables table')
+    expect(DOWNLOADABLE not in table, f'{DOWNLOADABLE} is already in the table')
+    DOWNLOADABLES = Downloadables()
+    DOWNLOADABLES.add(DOWNLOADABLE)
+    expect(DOWNLOADABLE in table, f'{DOWNLOADABLE} was not added to the table')
+    return len(table)
+
+
+def check_downloadables_after_map_change():
+    """Source.Python adds its downloadables to the new level's table again."""
+    from stringtables import string_tables
+    table = string_tables['downloadables']
+    expect(table is not None, 'no downloadables table')
+    expect(DOWNLOADABLE in table, f'{DOWNLOADABLE} is not in the new level\'s table')
+
+
+def check_custom_event_load():
+    """Write the custom event's .res file and load it into the engine's event manager."""
+    resource = ResourceFile('sp_harness', Sp_Harness_Event)
+    resource.write()
+    resource.load_events()
+    from events.manager import event_manager
+    event_manager.register_for_event('sp_harness_event', _on_custom_event)
+    return str(resource.fullpath.relpath(GAME_PATH))
+
+
+def fire_custom_event(number, text):
+    try:
+        Sp_Harness_Event(number=number, text=text).fire()
+    except Exception as error:
+        CUSTOM_EVENTS.append(f'firing ({number}, {text!r}): {type(error).__name__}: {error}')
 
 
 def check_precache():
@@ -567,28 +663,74 @@ def phase_players():
         for name in ('players.properties', 'players.helpers', 'players.teleport',
                      'players.take_damage', 'messages.send', 'menus.send'):
             skip(name, 'no bots on this game')
+        skip('commands.client_command', 'no bots on this game')
     else:
         player = players[0]
+        HAD_PLAYERS.append(len(everyone))
         check('players.properties', lambda: check_player_properties(player))
         check('players.helpers', lambda: check_player_helpers(player))
         check('players.teleport', lambda: check_player_teleport(player))
         check('players.take_damage', lambda: check_take_damage(player))
         check('messages.send', lambda: check_messages(player))
         check('menus.send', lambda: check_menus(player))
+        # the engine runs it as if the bot had typed it; checked in finish()
+        player.client_command('sp_harness_client 42 text', server_side=True)
+        PLAYER_FOR_CLIENT_COMMAND.append(player.index)
 
     # triggers for listener/event counters, checked in finish()
     queue_command_string('sp_harness_var 9')
     queue_command_string('sv_gravity 799')
     if GAME['bots']:
         queue_command_string(GAME['bots'][0])
-    Delay(5, finish)
+    Delay(5, change_map)
+
+
+PLAYER_FOR_CLIENT_COMMAND = []
+#: Set once bots have joined (by the end, after the map change, they may still be reconnecting).
+HAD_PLAYERS = []
+
+
+# =============================================================================
+# >> PHASE 3: MAP CHANGE
+# =============================================================================
+def change_map():
+    """changelevel to the same map: a full level shutdown and init with Source.Python (and
+    this plugin) staying loaded."""
+    RESULTS['map_change_from'] = global_vars.map_name
+    MAP_CHANGE['started'] = True
+    save()
+    queue_command_string(f'changelevel {global_vars.map_name}')
+    Delay(1, after_map_change, (0,))
+
+
+def after_map_change(waited):
+    if not MAP_CHANGE['inits'] and waited < 60:
+        Delay(1, after_map_change, (waited + 1,))
+        return
+    check('engine.map_change', check_map_change)
+    check('stringtables.downloadables_after_map_change', check_downloadables_after_map_change)
+    fire_custom_event(2, 'after')
+    Delay(3, finish)
+
+
+def check_map_change():
+    """One OnLevelShutdown and one OnLevelInit (for the same map) for the changelevel."""
+    expect(MAP_CHANGE['shutdowns'] == 1, f"{MAP_CHANGE['shutdowns']} OnLevelShutdown calls")
+    expect(MAP_CHANGE['inits'] == [RESULTS['map_change_from']], MAP_CHANGE['inits'])
+    expect(global_vars.map_name == RESULTS['map_change_from'], global_vars.map_name)
+    return MAP_CHANGE['inits'][0]
 
 
 def check_player_properties(player):
+    """Player properties (network properties at gamedata/server-class offsets) agree with what
+    the game's IPlayerInfo interface reports for the same bot, which doesn't use them."""
+    info = player.playerinfo
     expect(player.is_bot(), 'not a bot')
-    expect(isinstance(player.health, int), player.health)
-    expect(player.name, 'no name')
-    expect(player.userid > 0, player.userid)
+    expect(player.name and player.name == info.name, (player.name, info.name))
+    expect(player.userid > 0 and player.userid == info.userid, (player.userid, info.userid))
+    expect(player.health > 0 and player.health == info.health, (player.health, info.health))
+    expect(player.team == info.team, (player.team, info.team))
+    expect((player.origin - info.origin).length < 1.0, (tuple(player.origin), tuple(info.origin)))
     return {'name': player.name, 'health': player.health, 'team': player.team}
 
 
@@ -609,9 +751,14 @@ def check_player_teleport(player):
 
 
 def check_take_damage(player):
+    """The damage reaches the game (the bot's health drops, as IPlayerInfo reports it) and
+    the on_take_damage hook sees it."""
     before = COUNTS['entity_pre_hook.on_take_damage']
+    health = player.playerinfo.health
     player.take_damage(1)
     expect(COUNTS['entity_pre_hook.on_take_damage'] > before, 'on_take_damage hook not called')
+    expect(player.playerinfo.health < health, f'health {health} -> {player.playerinfo.health}')
+    return f'health {health} -> {player.playerinfo.health}'
 
 
 def check_messages(player):
@@ -635,14 +782,48 @@ def finish():
     for name, count in COUNTS.items():
         needs_players = name.startswith('entity_') or 'player_spawn' in name or \
             name == 'listener.on_client_active'
-        if needs_players and not list(PlayerIter()):
+        if needs_players and not HAD_PLAYERS:
             skip('counts.' + name, 'no bots on this game')
+        elif name in EXACT_COUNTS:
+            record('counts.' + name, 'pass' if count == EXACT_COUNTS[name] else 'fail',
+                   f'{count} (expected {EXACT_COUNTS[name]})')
         else:
             record('counts.' + name, 'pass' if count > 0 else 'fail', count)
     check_event_variables()
+    check('cvars.console_changes', check_console_convar_changes)
+    if PLAYER_FOR_CLIENT_COMMAND:
+        check('commands.client_command', check_client_command)
+    check('events.custom_event', check_custom_events)
     RESULTS['finished'] = True
     save()
     queue_command_string('quit')
+
+
+def check_console_convar_changes():
+    """Values set from the server console (phase_players) are what Source.Python reads, and
+    OnConVarChanged was given the old and new values."""
+    from cvars import cvar
+    for name, value in (('sp_harness_var', 9), ('sv_gravity', 799)):
+        expect(cvar.find_var(name).get_int() == value, (name, cvar.find_var(name).get_int()))
+    gravity = [change for change in CONVAR_CHANGES if change[0] == 'sv_gravity']
+    expect(gravity and gravity[-1][2] == '799' and gravity[-1][1] != '799', CONVAR_CHANGES)
+    harness = [change for change in CONVAR_CHANGES if change[0] == 'sp_harness_var']
+    expect(harness and harness[-1][1:] == ('5', '9'), CONVAR_CHANGES)
+    return CONVAR_CHANGES
+
+
+def check_client_command():
+    """The command a bot was made to run reached the ClientCommand, with its index and
+    arguments."""
+    expect(CLIENT_COMMANDS == [(PLAYER_FOR_CLIENT_COMMAND[0], '42 text')], CLIENT_COMMANDS)
+    return CLIENT_COMMANDS
+
+
+def check_custom_events():
+    """The custom event fired before the map change and the one fired after it both arrived,
+    with their values (the .res file is loaded once, as plugins do at load)."""
+    expect(CUSTOM_EVENTS == [(1, 'before'), (2, 'after')], CUSTOM_EVENTS)
+    return CUSTOM_EVENTS
 
 
 def check_event_variables():

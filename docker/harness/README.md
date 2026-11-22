@@ -32,7 +32,9 @@ check passed; skips and known issues don't fail a run. Needs Docker, `jq` and Py
 4. Starts the server on the game's test map with `sp plugin load sp_harness`, with seccomp off
    (Docker 29.4's default profile blocks the 32-bit `socketcall` that srcds needs). The plugin
    (`plugin/sp_harness/sp_harness.py`) runs the checks, writes `logs/sp_harness.json` after every
-   check, adds bots, runs the player checks and quits.
+   check, adds bots, runs the player checks, changes level (`changelevel` to the same map),
+   runs the checks that need a new level and quits. The loader first applies an update the
+   script staged (`tools/stage_update.sh`, `NO_UPDATE=1` to skip).
 5. `tools/report.py` prints the results. If the server crashed, the report names the check that
    was running.
 
@@ -43,12 +45,21 @@ check passed; skips and known issues don't fail a run. Needs Docker, `jq` and Py
 | runtime | Python version, platform, engine constants, native stdlib modules (ssl, ctypes, sqlite3, lzma, bz2, uuid, ...), compiled site-packages (greenlet, psycopg2) |
 | engine / entities | map, max clients, worldspawn, create/spawn/remove, `set_model`, `teleport` |
 | filters | `EntityIter` (networked), `BaseEntityIter` (server-only entities) |
-| memory | every `[function]` identifier for this platform in the effective gamedata resolves (`find_binary`; symbols and byte signatures), `make_function`, vtable read through `Pointer` matches the binary and the gamedata `teleport` slot (the last two need symbols: Linux only, not CS:GO) |
-| cvars / keyvalues / commands | `ConVar` create/set/get, `KeyValues` round trip, `ServerCommand` |
-| stringtables / precache / effects | downloadables, `Model` precache, `TempEntity('BeamPoints')` properties |
-| players (bots) | properties, helpers (userid/index/playerinfo/inthandle), `teleport`, `take_damage`, messages, menus |
-| counts | entity pre/post hooks (`pre_think`, `post_think`, `run_command`, `on_take_damage`), `Event` and `PreEvent`, `OnTick`, `OnClientActive`, `OnConVarChanged`, `ServerCommand`, `Delay`, `Repeat` |
-| events | `event['userid']`, `event.variables.get_int()` and `.as_dict()` agree with `event.get_int()` (upstream issue #536) |
+| memory | every `[function]` identifier for this platform in the effective gamedata resolves (`find_binary`; symbols and byte signatures), `make_function`, vtable read through `Pointer` matches the binary and the gamedata `teleport` slot (the last two need symbols: Linux only, not CS:GO), a `Callback` with BOOL arguments and return value (upstream #419) |
+| update | the loader applied the staged update (update stage 2) |
+| cvars / keyvalues / commands | `ConVar` create/set/get; values set from the server console are what `ConVar` reads and what `OnConVarChanged` gets (old and new); `KeyValues` round trip; `ServerCommand`; `ClientCommand` (a bot made to run a command server-side, with its index and arguments) |
+| stringtables / precache / effects | `Downloadables` adds to the engine's downloadables table, and again on the next level; `Model` precache; `TempEntity('BeamPoints')` properties |
+| players (bots) | properties agree with the game's `IPlayerInfo` (name, userid, health, team, origin); helpers (userid/index/playerinfo/inthandle); `teleport`; `take_damage` lowers health and reaches the hook; messages; menus |
+| level change | one `OnLevelShutdown` and one `OnLevelInit` for the same map |
+| counts | entity pre/post hooks (`pre_think`, `post_think`, `run_command`, `on_take_damage`), `Event` and `PreEvent`, `OnTick`, `OnClientActive`, `OnConVarChanged`, `OnLevelShutdown`, `OnLevelInit`, `ServerCommand`; exactly one `Delay` and three `Repeat` calls |
+| events | `event['userid']`, `event.variables.get_int()` and `.as_dict()` agree with `event.get_int()` (upstream issue #536); a `CustomEvent` (loaded once from a `.res` file) fired before and after the level change arrives with its values |
+
+Where possible a check observes the effect through a different path than the one that caused
+it: the engine's own interfaces (`IPlayerInfo`, the server console, string tables) or engine
+dispatch (hooks, events, commands), not a read back through the same Source.Python code. A few
+can only show that the call didn't fail, because only a real game client could see the result:
+messages, menus and temp entities sent to bots (fake clients receive nothing), and anything that
+needs a client to answer (`OnQueryCvarValueFinished`, menu selections).
 
 Known issues are reported as `XFAIL` (and `XPASS` once they start passing):
 `runtime.site_packages_speedups` on releases with the old vendored Python (SOABI
