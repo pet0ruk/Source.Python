@@ -38,9 +38,24 @@
 
 #include "dyncall_macros.h"
 
-#define DC_BOOL         int
+/* Source.Python: bool is a real (one-byte) bool, so a called function's bool return value is
+   read from al only, not the whole of eax (upstream Source.Python #419). C has no bool before
+   C23, so the library itself is compiled with _Bool, which has the same layout. */
+#if defined(__cplusplus)
+#define DC_BOOL         bool
+#else
+#define DC_BOOL         _Bool
+#endif
 #define DC_LONG_LONG    long long
+/* Source.Python: to its C++ code, pointers are passed and returned as integers, the type CPointer
+   keeps addresses in (CPointer::m_ulAddr). The library itself keeps void*, which it is written
+   for. Both are passed and returned the same way on the 32-bit platforms Source.Python builds
+   for; unsigned long would truncate addresses on 64-bit Windows. */
+#if defined(__cplusplus)
+#define DC_POINTER      unsigned long
+#else
 #define DC_POINTER      void*
+#endif
 
 #endif /* DYNCALL_CONFIG_H */
 
