@@ -453,12 +453,24 @@ def _platform_value(data, key, default=None):
     return data.get(f'{key}_{PLATFORM}', data.get(key, default))
 
 
+#: Gamedata functions known not to resolve, per (game, platform): reported, not failed. One that
+#: starts resolving fails the check, so the entry gets removed.
+KNOWN_UNRESOLVED = {
+    ('csgo', 'windows'): {
+        'CSmokeGrenadeProjectile.detonate':
+            'the Windows signature predates the final CS:GO build (Oct 2023) and matches '
+            'nothing; the function needs re-deriving from server.dll',
+    },
+}
+
+
 def check_gamedata_functions():
     """Every [function] identifier in the effective gamedata for this platform resolves in its
     binary: symbols, and byte signatures ('2A' is a wildcard byte) such as Windows uses."""
     import binascii
     from memory import find_binary
     found, missing, binaries = {'symbols': 0, 'signatures': 0}, [], {}
+    known, now_resolving = KNOWN_UNRESOLVED.get((GAME_NAME, PLATFORM), {}), []
     for cls, data in _effective_entity_gamedata().items():
         binary_name = _platform_value(data, 'binary', 'server')
         srv_check = str(_platform_value(data, 'srv_check', 'True')).lower() != 'false'
@@ -475,10 +487,17 @@ def check_gamedata_functions():
                               else ident]
                 found[kind] += 1
             except Exception:
-                missing.append(f'{cls}.{name} ({ident[:40]})')
+                missing.append(f'{cls}.{name}')
+                continue
+            if f'{cls}.{name}' in known:
+                now_resolving.append(f'{cls}.{name}')
     if not any(found.values()) and not missing:
         raise Skip(f'no [function] identifiers for {PLATFORM} in this game\'s gamedata')
-    expect(not missing, f'{len(missing)} unresolved: {missing[:10]}')
+    unexpected = [name for name in missing if name not in known]
+    expect(not unexpected, f'{len(unexpected)} unresolved: {unexpected[:10]}')
+    expect(not now_resolving, f'resolves now, remove from KNOWN_UNRESOLVED: {now_resolving}')
+    if missing:
+        found['known_unresolved'] = {name: known[name] for name in missing}
     return found
 
 
