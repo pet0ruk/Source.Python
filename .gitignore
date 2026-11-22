@@ -59,7 +59,7 @@ addons/source-python/docs/plugins/
 /sp-harness-out/
 
 # Linux Python runtime (from source-python-runtime; laid over the tree when building releases,
-# see src/makefiles/linux/python-runtime.cmake): never vendor it here again
+# see src/makefiles/python-runtime.cmake): never vendor it here again
 addons/source-python/Python3/lib-dynload/
 addons/source-python/Python3/plat-linux/
 addons/source-python/packages/site-packages/_sysconfigdata__linux_*.py

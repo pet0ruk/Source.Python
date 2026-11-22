@@ -11,8 +11,12 @@
 #                build.log     cmake + build output
 #                hl2sdk.txt    the hl2sdk commit that was built against
 #
+#                python-runtime.txt  the Python runtime's manifest
+#
 # Env:
 #   HL2SDK_REV   hl2sdk commit/branch to build against (default: the branch head, like Build.bat)
+#   SP_PYTHON_RUNTIME_ARCHIVE  local Python runtime bundle (.zip) to build and ship with,
+#                instead of the release pinned in src/makefiles/python-runtime.cmake
 #
 # Unlike build.sh this builds in place, like Build.bat: the SDK is checked out into
 # src/hl2sdk/<branch> and the build goes to src/Builds/Windows/<branch> (both gitignored, both
@@ -47,6 +51,7 @@ echo ">> building $BRANCH"
 set +e
 {
     cmake -S "$SRC" -B "$B" -A Win32 -DBRANCH="$BRANCH" \
+        ${SP_PYTHON_RUNTIME_ARCHIVE:+"-DSP_PYTHON_RUNTIME_ARCHIVE=$(cygpath -m "$SP_PYTHON_RUNTIME_ARCHIVE")"} \
         && cmake --build "$B" --config Release --parallel
 } > "$OUT/build.log" 2>&1
 rc=$?
@@ -62,6 +67,7 @@ grep -m1 -E "Building for:|Selecting Windows SDK|The CXX compiler identification
 echo ">> staging $OUT/release"
 git -C "$REPO" ls-files -z addons cfg logs resource sound | (cd "$REPO" && tar -c --null -T -) \
     | tar -x -C "$OUT/release"
+"$HERE/stage-python-runtime.sh" "$B/python-runtime" "$OUT/release" "$OUT"
 cp "$B/Release/source-python.dll" "$OUT/release/addons/"
 mkdir -p "$OUT/release/addons/source-python/bin"
 cp "$B/Release/core.dll" "$OUT/release/addons/source-python/bin/"

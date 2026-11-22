@@ -11,11 +11,12 @@ include("makefiles/branch/${BRANCH}.cmake")
 include("makefiles/shared.cmake")
 
 # ------------------------------------------------------------------
-# Python directories
+# Python runtime (headers, python3X.lib, Boost.Python)
 # ------------------------------------------------------------------
-Set(PYTHONSDK            ${THIRDPARTY_DIR}/python_win32)
-Set(PYTHONSDK_INCLUDE    ${PYTHONSDK}/include)
-Set(PYTHONSDK_LIB        ${PYTHONSDK}/libs)
+include("makefiles/python-runtime.cmake")
+
+# The loader loads Python3/plat-win/<this>.
+Add_Compile_Definitions(SP_LIBPYTHON_WIN32="${PYTHONSDK_LIBPYTHON}")
 
 # ------------------------------------------------------------------
 # Add in the python sdk as an include directory.
@@ -98,10 +99,10 @@ Endif()
 # ------------------------------------------------------------------
 # Release link libraries
 # ------------------------------------------------------------------
-Set(SOURCEPYTHON_LINK_LIBRARIES_RELEASE
-    optimized ${PYTHONSDK_LIB}/python313.lib
-    optimized ${BOOSTSDK_LIB}/libboost_python313-vc143-mt-s-x32-1_87.lib
-)
+Set(SOURCEPYTHON_LINK_LIBRARIES_RELEASE)
+ForEach(_lib ${PYTHONSDK_LIBS})
+    List(APPEND SOURCEPYTHON_LINK_LIBRARIES_RELEASE optimized ${_lib})
+EndForEach()
 
 If( SOURCE_ENGINE MATCHES "csgo" )
     SET(SOURCEPYTHON_LINK_LIBRARIES_RELEASE
