@@ -767,8 +767,13 @@ def check_take_damage(player):
     """The damage reaches the game (the bot's health drops, as IPlayerInfo reports it) and
     the on_take_damage hook sees it."""
     before = COUNTS['entity_pre_hook.on_take_damage']
+    if SOURCE_ENGINE == 'csgo':
+        # bots are immune for a while after spawning in warmup, and damage is ignored
+        player.set_network_property_bool('m_bGunGameImmunity', False)
+        player.set_network_property_float('m_fImmuneToGunGameDamageTime', 0.0)
     health = player.playerinfo.health
-    player.take_damage(1)
+    # 10, not 1: armour halves damage and CS:GO bots spawn with it (1 would round to 0)
+    player.take_damage(10)
     expect(COUNTS['entity_pre_hook.on_take_damage'] > before, 'on_take_damage hook not called')
     expect(player.playerinfo.health < health, f'health {health} -> {player.playerinfo.health}')
     return f'health {health} -> {player.playerinfo.health}'
