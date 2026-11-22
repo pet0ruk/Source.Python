@@ -50,7 +50,7 @@ check passed; skips and known issues don't fail a run. Needs Docker, `jq` and Py
 | cvars / keyvalues / commands | `ConVar` create/set/get; values set from the server console are what `ConVar` reads and what `OnConVarChanged` gets (old and new); `KeyValues` round trip; `ServerCommand`; `ClientCommand` (a bot made to run a command server-side, with its index and arguments) |
 | stringtables / precache / effects | `Downloadables` adds to the engine's downloadables table, and again on the next level; `Model` precache; `TempEntity('BeamPoints')` properties |
 | players (bots) | properties agree with the game's `IPlayerInfo` (name, userid, health, team, origin); helpers (userid/index/playerinfo/inthandle); `teleport`; `take_damage` lowers health and reaches the hook; messages; menus |
-| level change | one `OnLevelShutdown` and one `OnLevelInit` for the same map |
+| level change | `changelevel` to the same map: one `OnLevelEnd` and one `OnLevelInit` for that map, at least one `OnLevelShutdown` (some games call it twice) |
 | counts | entity pre/post hooks (`pre_think`, `post_think`, `run_command`, `on_take_damage`), `Event` and `PreEvent`, `OnTick`, `OnClientActive`, `OnConVarChanged`, `OnLevelShutdown`, `OnLevelInit`, `ServerCommand`; exactly one `Delay` and three `Repeat` calls |
 | events | `event['userid']`, `event.variables.get_int()` and `.as_dict()` agree with `event.get_int()` (upstream issue #536); a `CustomEvent` (loaded once from a `.res` file) fired before and after the level change arrives with its values |
 

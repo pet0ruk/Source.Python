@@ -49,6 +49,7 @@ from filters.players import PlayerIter
 #   Listeners
 from listeners import OnClientActive
 from listeners import OnConVarChanged
+from listeners import OnLevelEnd
 from listeners import OnLevelInit
 from listeners import OnLevelShutdown
 from listeners import OnTick
@@ -129,7 +130,7 @@ CUSTOM_EVENTS = []
 LEVEL_INITS = []
 #: Level shutdowns/inits from the harness's changelevel on (the plugin is loaded before the
 #: server's first map has finished loading, so that map's own are counted in COUNTS too).
-MAP_CHANGE = {'started': False, 'shutdowns': 0, 'inits': []}
+MAP_CHANGE = {'started': False, 'shutdowns': 0, 'ends': 0, 'inits': []}
 #: The file added to the downloadables table (checked again after the map change).
 DOWNLOADABLE = 'sound/sp_harness/none.wav'
 
@@ -255,6 +256,12 @@ def _on_level_shutdown():
     COUNTS['listener.on_level_shutdown'] += 1
     if MAP_CHANGE['started']:
         MAP_CHANGE['shutdowns'] += 1
+
+
+@OnLevelEnd
+def _on_level_end():
+    if MAP_CHANGE['started']:
+        MAP_CHANGE['ends'] += 1
 
 
 @OnLevelInit
@@ -696,6 +703,8 @@ HAD_PLAYERS = []
 def change_map():
     """changelevel to the same map: a full level shutdown and init with Source.Python (and
     this plugin) staying loaded."""
+    # before the level changes: some games reset convars for a new level (L4D2: sv_gravity)
+    check('cvars.console_changes', check_console_convar_changes)
     RESULTS['map_change_from'] = global_vars.map_name
     MAP_CHANGE['started'] = True
     save()
@@ -714,11 +723,14 @@ def after_map_change(waited):
 
 
 def check_map_change():
-    """One OnLevelShutdown and one OnLevelInit (for the same map) for the changelevel."""
-    expect(MAP_CHANGE['shutdowns'] == 1, f"{MAP_CHANGE['shutdowns']} OnLevelShutdown calls")
+    """The changelevel ends the level once (OnLevelEnd) and initialises it once (OnLevelInit,
+    same map). OnLevelShutdown passes on the engine's LevelShutdown calls, which some games make
+    more than once per change (L4D2: twice); OnLevelEnd is Source.Python's once-per-map one."""
+    expect(MAP_CHANGE['shutdowns'] >= 1, 'no OnLevelShutdown')
+    expect(MAP_CHANGE['ends'] == 1, f"{MAP_CHANGE['ends']} OnLevelEnd calls")
     expect(MAP_CHANGE['inits'] == [RESULTS['map_change_from']], MAP_CHANGE['inits'])
     expect(global_vars.map_name == RESULTS['map_change_from'], global_vars.map_name)
-    return MAP_CHANGE['inits'][0]
+    return {'map': MAP_CHANGE['inits'][0], 'shutdowns': MAP_CHANGE['shutdowns']}
 
 
 def check_player_properties(player):
@@ -790,7 +802,6 @@ def finish():
         else:
             record('counts.' + name, 'pass' if count > 0 else 'fail', count)
     check_event_variables()
-    check('cvars.console_changes', check_console_convar_changes)
     if PLAYER_FOR_CLIENT_COMMAND:
         check('commands.client_command', check_client_command)
     check('events.custom_event', check_custom_events)
