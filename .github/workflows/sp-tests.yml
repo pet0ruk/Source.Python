@@ -42,9 +42,6 @@ jobs:
           GAME: ${{ inputs.game || 'all' }}
           PLATFORM: ${{ inputs.platform || 'all' }}
         run: |
-          # TEMPORARY (while getting Windows working, remove before merging): pull requests only
-          # run TF2 on Windows; use a manual run (workflow_dispatch) for anything else.
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then GAME=tf2 PLATFORM=windows; fi
           echo "linux=$([ "$PLATFORM" != windows ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
           echo "windows=$([ "$PLATFORM" != linux ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
           if [ "$GAME" = all ]; then
