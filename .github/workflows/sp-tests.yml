@@ -1,5 +1,6 @@
 # Builds Source.Python from the branch under test and runs the functional tests from
-# docker/harness on the srcds:<game> test images (see srcds-images.yml), one job per game.
+# docker/harness on the srcds:<game> test images (see srcds-images.yml), one job per game and
+# platform (Linux: srcds:<game>; Windows: the files of srcds:<game>-windows).
 name: Source.Python tests
 
 on:
@@ -98,3 +99,61 @@ jobs:
             ${{ env.OUT }}/harness/srcds_run.log
             ${{ env.OUT }}/harness/gamedata-vtables.txt
             ${{ env.OUT }}/harness/source-python-logs/
+
+  # The same tests on the Windows server: MSVC build (docker/build/build-windows.sh), then the
+  # harness on the files of srcds:<game>-windows (docker/harness/run-windows.sh). Steps run in
+  # Git Bash; OUT is the POSIX form of the runner's temp dir, the artifact paths its Windows form.
+  test-windows:
+    needs: games
+    name: test-windows (${{ matrix.game }})
+    runs-on: windows-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        game: ${{ fromJSON(needs.games.outputs.list) }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      GAME: ${{ matrix.game }}
+    steps:
+      - uses: actions/checkout@v7 # v7.0.1
+
+      - name: Output directory
+        run: echo "OUT=$(cygpath -u "$RUNNER_TEMP")/sp-out" >> "$GITHUB_ENV"
+
+      - name: Build Source.Python (${{ matrix.game }}, Windows)
+        run: docker/build/build-windows.sh "$GAME" "$OUT/build"
+
+      - name: Run tests on srcds:${{ matrix.game }}-windows
+        env:
+          SRCDS_IMAGE: ghcr.io/${{ github.repository_owner }}/srcds
+        run: |
+          set -o pipefail
+          docker/harness/run-windows.sh "$GAME" "$OUT/build/release" "$OUT/harness" | tee "$OUT/report.txt"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### $GAME, Windows (hl2sdk $(cut -c1-9 "$OUT/build/hl2sdk.txt" 2>/dev/null || echo '?'))"
+            echo '```text'
+            sed -n '/^gamedata vtables/,$p' "$OUT/report.txt" 2>/dev/null || echo "no test report (build failed?)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v7 # v7.0.2
+        with:
+          name: sp-tests-${{ matrix.game }}-windows
+          if-no-files-found: ignore
+          path: |
+            ${{ runner.temp }}/sp-out/report.txt
+            ${{ runner.temp }}/sp-out/build/build.log
+            ${{ runner.temp }}/sp-out/build/hl2sdk.txt
+            ${{ runner.temp }}/sp-out/harness/results.json
+            ${{ runner.temp }}/sp-out/harness/console.log
+            ${{ runner.temp }}/sp-out/harness/srcds_run.log
+            ${{ runner.temp }}/sp-out/harness/source-python-logs/

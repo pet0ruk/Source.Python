@@ -12,10 +12,12 @@ failed = False
 
 vt_rc = (out / 'gamedata-vtables.rc').read_text().strip() if (out / 'gamedata-vtables.rc').exists() else '?'
 vt_text = (out / 'gamedata-vtables.txt').read_text().strip() if (out / 'gamedata-vtables.txt').exists() else ''
-print(f"gamedata vtables (offline): {'PASS' if vt_rc == '0' else 'FAIL'}  {vt_text.splitlines()[-1] if vt_text else 'no output'}")
+# rc "skip": the runner can't do this check (Windows: server.dll has no symbols)
+vt_status = {'0': 'PASS', 'skip': 'SKIP'}.get(vt_rc, 'FAIL')
+print(f"gamedata vtables (offline): {vt_status}  {vt_text.splitlines()[-1] if vt_text else 'no output'}")
 for line in vt_text.splitlines()[:-1]:
     print('    ' + line.strip())
-failed |= vt_rc != '0'
+failed |= vt_status == 'FAIL'
 
 srcds_rc = (out / 'srcds.rc').read_text().strip() if (out / 'srcds.rc').exists() else '?'
 results_file = out / 'results.json'
