@@ -17,6 +17,7 @@ import sys
 import sysconfig
 import time
 import traceback
+from contextlib import contextmanager
 
 # Source.Python Imports
 #   Core
@@ -154,18 +155,30 @@ class Skip(Exception):
     """Raised by a check that has nothing to test on this game."""
 
 
-def check(name, fn):
-    """Run ``fn``; pass if it returns a truthy value or None, fail on falsy or exception."""
+@contextmanager
+def running(name):
+    """Mark ``name`` as running in the results file, so that a crash inside it (the server
+    stops before the file is written again) is reported against it, not the last check."""
+    previous = RESULTS.get('running')
     RESULTS['running'] = name
     save()
     try:
-        value = fn()
-        record(name, 'pass' if value is None or bool(value) else 'fail', value)
-    except Skip as reason:
-        record(name, 'skip', str(reason))
-    except Exception:
-        record(name, 'fail', error=traceback.format_exc())
-    RESULTS['running'] = None
+        yield
+    finally:
+        RESULTS['running'] = previous
+        save()
+
+
+def check(name, fn):
+    """Run ``fn``; pass if it returns a truthy value or None, fail on falsy or exception."""
+    with running(name):
+        try:
+            value = fn()
+            record(name, 'pass' if value is None or bool(value) else 'fail', value)
+        except Skip as reason:
+            record(name, 'skip', str(reason))
+        except Exception:
+            record(name, 'fail', error=traceback.format_exc())
 
 
 def skip(name, reason):
@@ -217,16 +230,21 @@ def _on_player_spawn(game_event):
     if len(SPAWN_EVENTS) < 1:
         # Engine-owned KeyValues read through Source.Python's own KeyValues code
         # (upstream issue #536): capture all three access paths for the same key.
-        entry = {'get_int': game_event.get_int('userid')}
-        for label, read in (
-                ('getitem', lambda: game_event['userid']),
-                ('variables.get_int', lambda: game_event.variables.get_int('userid')),
-                ('variables.as_dict', lambda: game_event.variables.as_dict().get('userid'))):
-            try:
-                entry[label] = read()
-            except Exception as error:
-                entry[label] = f'{type(error).__name__}: {error}'
-        SPAWN_EVENTS.append(entry)
+        with running('listener: player_spawn (reading the event variables)'):
+            _capture_spawn_event(game_event)
+
+
+def _capture_spawn_event(game_event):
+    entry = {'get_int': game_event.get_int('userid')}
+    for label, read in (
+            ('getitem', lambda: game_event['userid']),
+            ('variables.get_int', lambda: game_event.variables.get_int('userid')),
+            ('variables.as_dict', lambda: game_event.variables.as_dict().get('userid'))):
+        try:
+            entry[label] = read()
+        except Exception as error:
+            entry[label] = f'{type(error).__name__}: {error}'
+    SPAWN_EVENTS.append(entry)
 
 
 @PreEvent('player_spawn')
@@ -288,7 +306,8 @@ class Sp_Harness_Event(CustomEvent):
 def _on_custom_event(game_event):
     """Registered once the event is loaded (check_custom_event_load); the engine doesn't know
     it before."""
-    CUSTOM_EVENTS.append((game_event['number'], game_event['text']))
+    with running('listener: sp_harness_event (reading the event variables)'):
+        CUSTOM_EVENTS.append((game_event['number'], game_event['text']))
 
 
 @ServerCommand('sp_harness_command')
@@ -820,7 +839,8 @@ SMOKE_EXPECTED = []
 
 
 def _on_smoke_detonate(game_event):
-    SMOKE_EVENTS.append((game_event['entityid'], game_event['userid']))
+    with running('listener: smokegrenade_detonate (reading the event variables)'):
+        SMOKE_EVENTS.append((game_event['entityid'], game_event['userid']))
 
 
 def start_smoke_detonate(player):
