@@ -81,7 +81,6 @@ jobs:
         env:
           SRCDS_IMAGE: ghcr.io/${{ github.repository_owner }}/srcds
           # test the binaries as built: an executable stack would stop them loading (glibc >= 2.41)
-          KEEP_EXECSTACK: 1
         run: |
           set -o pipefail
           docker/harness/run.sh "$GAME" "$OUT/build/release" "$OUT/harness" | tee "$OUT/report.txt"

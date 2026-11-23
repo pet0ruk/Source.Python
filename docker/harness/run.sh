@@ -12,14 +12,6 @@
 #   GAMES_JSON      per-game settings (default docker/srcds/games.json), e.g. for a game
 #                   without a published image
 #   PULL=0          don't pull the image first
-#   RUNTIME=bare    run on the srcds image as-is, without the libraries Source.Python's bundled
-#                   Python needs (docker/harness/Dockerfile); useful for testing builds that
-#                   ship their own
-#   REMOVE_GAME_LIBSTDCXX=1  remove the game's bundled libstdc++/libgcc_s (L4D2), which older
-#                   releases need to load (current ones link libstdc++ statically); on by
-#                   default for games with "remove_game_libstdcxx": true in games.json (CS:GO)
-#   KEEP_EXECSTACK=1  don't clear the executable-stack flag on core.so (glibc >= 2.41, as in
-#                   the images, then refuses to load it)
 #   TIMEOUT         seconds before the server is killed (default 240)
 #   OVERLAY_REPO=1  copy this repository's tracked addons/cfg/resource/sound files (as they are
 #                   in the working tree) over the release, to test Python/data changes against
@@ -39,20 +31,16 @@ TIMEOUT=${TIMEOUT:-240}
 cfg() { jq -er --arg g "$GAME" ".[\$g].$1" "$GAMES_JSON"; }
 cfg app_id >/dev/null || { echo "unknown game '$GAME' (see $GAMES_JSON)" >&2; exit 2; }
 GAME_DIR=$(cfg game_dir); MAP=$(cfg map); ENGINE=$(cfg sp_engine)
-# games.json can ask for it (CS:GO: its bundled libgcc_s breaks the image's libstdc++)
-if [ -z "${REMOVE_GAME_LIBSTDCXX:-}" ] && [ "$(cfg remove_game_libstdcxx 2>/dev/null)" = true ]; then
-    REMOVE_GAME_LIBSTDCXX=1
-fi
+# games.json can ask for the game's bundled libstdc++/libgcc_s to be removed (CS:GO: its
+# libgcc_s breaks the image's libstdc++); see the Dockerfile
+REMOVE_GAME_LIBSTDCXX=$( [ "$(cfg remove_game_libstdcxx 2>/dev/null)" = true ] && echo 1 || true )
 BASE="$SRCDS_IMAGE:$GAME"
 
 echo ">> image $BASE"
 [ "${PULL:-1}" = 0 ] || docker pull -q "$BASE" >/dev/null
-IMAGE=$BASE
-if [ "${RUNTIME:-}" != bare ]; then
-    IMAGE="sp-harness:$GAME"
-    docker build -q -f "$HERE/Dockerfile" --build-arg BASE="$BASE" \
-        --build-arg REMOVE_GAME_LIBSTDCXX="${REMOVE_GAME_LIBSTDCXX:-}" -t "$IMAGE" "$HERE" >/dev/null
-fi
+IMAGE="sp-harness:$GAME"
+docker build -q -f "$HERE/Dockerfile" --build-arg BASE="$BASE" \
+    --build-arg REMOVE_GAME_LIBSTDCXX="$REMOVE_GAME_LIBSTDCXX" -t "$IMAGE" "$HERE" >/dev/null
 
 echo ">> staging Source.Python from $SRC into $OUT"
 rm -rf "$OUT"; mkdir -p "$OUT/sp"
@@ -79,9 +67,6 @@ sp plugin load sp_harness
 EOF
 # an update for the loader to apply on start (update.stage2)
 [ "${NO_UPDATE:-}" = 1 ] || bash "$HERE/tools/stage_update.sh" "$OUT/sp"
-if [ "${KEEP_EXECSTACK:-}" != 1 ]; then
-    python3 -I "$HERE/tools/clear_execstack.py" "$CORE"
-fi
 
 # Dedicated-server builds are server_srv.so; CS:GO ships only server.so.
 cid=$(docker create "$BASE")
