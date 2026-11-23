@@ -2,11 +2,11 @@
 
  Package: dyncall
  Library: dyncall
- File: dyncall/dyncall_call_mips_eabi.h
- Description: mips "eabi" abi call kernel C interface.
+ File: dyncall/dyncall_callvm_arm64.h
+ Description: 
  License:
 
-   Copyright (c) 2007-2011 Daniel Adler <dadler@uni-goettingen.de>, 
+   Copyright (c) 2015-2020 Daniel Adler <dadler@uni-goettingen.de>, 
                            Tassilo Philipp <tphilipp@potion-studios.com>
 
    Permission to use, copy, modify, and distribute this software for any
@@ -23,39 +23,24 @@
 
 */
 
+#ifndef DYNCALL_CALLVM_ARM64_H
+#define DYNCALL_CALLVM_ARM64_H
 
-#ifndef DYNCALL_CALL_MIPS_EABI_H
-#define DYNCALL_CALL_MIPS_EABI_H
+#include "dyncall_callvm.h"
+#include "dyncall_vector.h"
 
-#include "dyncall_types.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/* Call-kernel register data: 
-
-   Details:
-   Two register content buffers for the corresponding register types 
-   integer and float are filled from CallVM code and then later at
-   call-kernel loaded into the registers.
- */
-
-struct DCRegData_mips_eabi
+typedef struct
 {
-  DCint   mIntData[8];
-  DCfloat mSingleData[8];
-};
+  DCCallVM mInterface;
+  unsigned int i;	/* int register counter */
+  unsigned int f;	/* float register counter */
+  union {		/* float register buffer */
+    DCfloat  S[16];
+    DCdouble D[8];
+  } u;
+  unsigned long long I[8]; /* int register buffer */
+  DCVecHead mVecHead;	/* argument buffer head */
+} DCCallVM_arm64;
 
-
-/* Call kernel. */
-
-void dcCall_mips_eabi(DCpointer target, struct DCRegData_mips_eabi*  regdata, DCsize stksize, DCpointer stkdata);
-
-#ifdef __cplusplus
-}
-#endif
-
-
-#endif /* DYNCALL_CALL_MIPS_EABI_H */
+#endif /* DYNCALL_CALLVM_ARM64_DEBIAN_H */
 

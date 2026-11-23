@@ -1,11 +1,11 @@
-# dyncall 0.7
+# dyncall 1.4
 
-The source of [dyncall](https://dyncall.org) 0.7's `dyncall` (calling native functions) and
+The source of [dyncall](https://dyncall.org) 1.4's `dyncall` (calling native functions) and
 `dynload` (loading libraries) libraries, built by `src/makefiles/dyncall/dyncall.cmake`. It is
 vendored as source because the upstream repository and site aren't reliably available.
 
-- Source: https://dyncall.org/r0.7/dyncall-0.7.tar.gz
-  (sha256 `d2aedea55478ec4b1519b379027719b47eddd3f4a2f7bc514f7cb0333bced5d0`)
+- Source: https://dyncall.org/r1.4/dyncall-1.4.tar.gz
+  (sha256 `14437dbbef3b6dc92483f6507eaf825ab97964a89eecae8cb347a6bec9c32aae`)
 - `dyncall/`, `dynload/`, and `autovar/` and `portasm/` (headers they include) are copied from
   that tarball unchanged, apart from line endings (LF). The rest (`dyncallback/`, tests, docs,
   build systems) is left out; Source.Python doesn't use it.

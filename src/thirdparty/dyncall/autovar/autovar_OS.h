@@ -6,8 +6,8 @@
  Description: 
  License:
 
-   Copyright (c) 2011 Daniel Adler <dadler@uni-goettingen.de>,
-                      Tassilo Philipp <tphilipp@potion-studios.com>
+   Copyright (c) 2011-2018 Daniel Adler <dadler@uni-goettingen.de>,
+                           Tassilo Philipp <tphilipp@potion-studios.com>
 
    Permission to use, copy, modify, and distribute this software for any
    purpose with or without fee is hereby granted, provided that the above
@@ -22,6 +22,7 @@
    OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 */
+
 #ifndef AUTOVAR_OS_H
 #define AUTOVAR_OS_H
 
@@ -38,7 +39,7 @@
 #  endif
 #elif defined(__linux__) || defined(__linux) || defined(__gnu_linux__)
 #  define OS_Linux
-#elif defined(__FreeBSD__)
+#elif defined(__FreeBSD__) || defined(__FreeBSD_kernel__) /* latter is (also) used by systems using FreeBSD kernel, e.g. Debian/kFreeBSD, which could be detected specifically by also checking for __GLIBC__ */
 #  define OS_FreeBSD
 #elif defined(__OpenBSD__)
 #  define OS_OpenBSD
@@ -48,10 +49,6 @@
 #  define OS_DragonFlyBSD
 #elif defined(__sun__) || defined(__sun) || defined(sun)
 #  define OS_SunOS
-#elif defined(__CYGWIN__)
-#  define OS_Cygwin
-#elif defined(__MINGW__)
-#  define OS_MinGW
 #elif defined(__nds__)
 #  define OS_NDS
 #elif defined(__psp__) || defined(PSP)
@@ -66,6 +63,20 @@
 #  define OS_Minix
 #else
 #  define OS_Unknown
+#endif
+
+#if defined(DC__OS_Win32) || defined(DC__OS_Win64)
+#  if defined(__CYGWIN__)
+#    define OS_Cygwin
+#  elif defined(__MINGW32__) || defined(__MINGW64__)
+#    define OS_MinGW
+#  endif
+#endif
+
+/** Platforms. */
+
+#if defined(__ANDROID__)
+#  define OS_Android
 #endif
 
 #endif /* AUTOVAR_OS */

@@ -1,13 +1,12 @@
 /*
 
  Package: dyncall
- Library: dyncall
- File: dyncall/dyncall_call_arm32_arm.h
- Description: 
+ Library: portasm
+ File: portasm/portasm-arm.S
+ Description:
  License:
 
-   Copyright (c) 2007-2011 Daniel Adler <dadler@uni-goettingen.de>, 
-                           Tassilo Philipp <tphilipp@potion-studios.com>
+   Copyright (c) 2020 Bernhard Urban-Forster <beurba@microsoft.com>
 
    Permission to use, copy, modify, and distribute this software for any
    purpose with or without fee is hereby granted, provided that the above
@@ -24,38 +23,36 @@
 */
 
 
-/*
 
-  dyncall 32bit ARM32 family interface (ARM mode)
+#define BEGIN_ASM
+#include "../autovar/autovar_OS.h"
 
-  REVISION
-  2007/12/11 initial
+#if defined(GEN_MASM)
+#define TEXTAREA AREA .text, CODE, ARM64
+#define ALIGN(X)
+#define LABELDEF(X) dcCall_arm64_##X
+#define LABELUSE(X) dcCall_arm64_##X
+#define END_PROC ENDP
+#define END_ASM END
+#define GLOBAL_C(X) EXPORT X
+#define ENTRY_C(X) X PROC
 
-*/
+#else
 
+#define TEXTAREA .text
+#define ALIGN(X) .align 2
+#define LABELDEF(X) .##X##:
+#define LABELUSE(X) .##X
+#define END_PROC
+#define END_ASM
 
-#ifndef DYNCALL_CALL_ARM32_ARM_H
-#define DYNCALL_CALL_ARM32_ARM_H
-
-
-#include "dyncall_types.h"
-
-#ifdef __cplusplus
-extern "C" {
+#if defined(OS_Darwin)
+#define GLOBAL_C(X) .globl _##X
+#define ENTRY_C(X) _##X:
+#else
+#define GLOBAL_C(X) .globl X
+#define ENTRY_C(X) X:
 #endif
 
-/* 
-** arm32 arm mode calling convention calls 
-**
-** - hybrid return-type call (bool ... pointer)
-**
-*/
-
-void dcCall_arm32_arm(DCpointer target, DCpointer stackdata, DCsize size);
-
-#ifdef __cplusplus
-}
 #endif
 
-
-#endif /* DYNCALL_CALL_ARM32_ARM_H */

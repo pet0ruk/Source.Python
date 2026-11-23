@@ -2,11 +2,11 @@
 
  Package: dyncall
  Library: dyncall
- File: dyncall/dyncall_call_mips_gas.S
- Description: auto-select (via gnu c preprocessor) mips abi call kernel
+ File: dyncall/dyncall_callvm_arm32_arm_armhf.h
+ Description: 
  License:
 
-   Copyright (c) 2007-2011 Daniel Adler <dadler@uni-goettingen.de>,
+   Copyright (c) 2007-2020 Daniel Adler <dadler@uni-goettingen.de>, 
                            Tassilo Philipp <tphilipp@potion-studios.com>
 
    Permission to use, copy, modify, and distribute this software for any
@@ -24,13 +24,36 @@
 */
 
 
-#if defined(DC__ABI_MIPS_O32)
-#include "dyncall_call_mips_o32_gas.s"
-#elif defined(DC__ABI_MIPS_N64)
-#include "dyncall_call_mips_n64_gas.s"
-#elif defined(DC__ABI_MIPS_N32)
-#include "dyncall_call_mips_n32_gas.s"
-#else
-#include "dyncall_call_mips_eabi_gas.s"
-#endif
+
+/*
+
+  dyncall callvm for 32bit ARM32 family of processors
+
+  SUPPORTED CALLING CONVENTIONS
+  armcall
+
+  REVISION
+  2007/12/11 initial
+
+*/
+
+
+#ifndef DYNCALL_CALLVM_ARM32_ARM_ARMHF_H
+#define DYNCALL_CALLVM_ARM32_ARM_ARMHF_H
+
+#include "dyncall_callvm.h"
+#include "dyncall_vector.h"
+
+typedef struct
+{
+  DCCallVM     mInterface;
+  unsigned int i;
+  unsigned int s;
+  unsigned int d;
+  DCfloat      S[16];
+  DCpointer    mpCallFunc;
+  DCVecHead    mVecHead;
+} DCCallVM_arm32_armhf;
+
+#endif /* DYNCALL_CALLVM_ARM32_ARM_H */
 

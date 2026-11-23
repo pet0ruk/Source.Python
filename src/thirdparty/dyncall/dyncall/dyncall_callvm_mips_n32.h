@@ -2,11 +2,11 @@
 
  Package: dyncall
  Library: dyncall
- File: dyncall/dyncall_call_mips_n64.h
- Description: mips "n64" ABI call-kernel C interface.
+ File: dyncall/dyncall_callvm_mips_n32.h
+ Description: mips64 "n32" ABI callvm C interface.
  License:
 
-   Copyright (c) 2007-2011 Daniel Adler <dadler@uni-goettingen.de>, 
+   Copyright (c) 2007-2020 Daniel Adler <dadler@uni-goettingen.de>,
                            Tassilo Philipp <tphilipp@potion-studios.com>
 
    Permission to use, copy, modify, and distribute this software for any
@@ -24,14 +24,17 @@
 */
 
 
-#ifndef DYNCALL_CALL_MIPS_N64_H
-#define DYNCALL_CALL_MIPS_N64_H
 
-#include "dyncall_types.h"
+#ifndef DYNCALL_CALLVM_MIPS_N32_H
+#define DYNCALL_CALLVM_MIPS_N32_H
+
+#include "dyncall_callvm.h"
+#include "dyncall_vector.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
 
 /*
   two register-files for integer (promoted to 64-bit) and float (not promoted!)
@@ -49,19 +52,26 @@ extern "C" {
   interpreted in the call-kernel.
 */
 
-struct DCRegData_mips_n64
+typedef struct
 {
-  DClonglong   mIntData[8];
+  DClonglong                       mIntData[8];
   union { DCfloat f; DCdouble d; } mFloatData[8];
-  DClonglong   mUseDouble; /* bitmask: lower 8 bits specifies to use float or double from union array. */
-};
+  DClonglong                       mUseDouble; /* bitmask: lower 8 bits specify to use float or double from union array. */
+} DCRegData_mips_n32;
 
-void dcCall_mips_n64(DCpointer target, struct DCRegData_mips_n64* regdata, DCsize stksize, DCpointer stkdata);
+
+typedef struct
+{
+  DCCallVM           mInterface;
+  DCint              mRegCount;
+  DCRegData_mips_n32 mRegData;
+  DCVecHead          mVecHead;
+} DCCallVM_mips_n32;
+
 
 #ifdef __cplusplus
 }
 #endif
 
-
-#endif /* DYNCALL_CALL_MIPS_N64_H */
+#endif /* DYNCALL_CALLVM_MIPS_N32_H */
 
