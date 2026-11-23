@@ -34,9 +34,12 @@ Include_Directories(
 Add_Definitions(-DCOMPILER_MSVC -DCOMPILER_MSVC32 -D_WIN32)
 
 # ------------------------------------------------------------------
-# Release flags.
+# Release flags: optimised, without assert() (NDEBUG), like the Linux
+# build's (CMake's -O3 -DNDEBUG). _NDEBUG, which these flags always had,
+# is kept (Source.Python itself doesn't check it). The C runtime (static,
+# /MT) is chosen by the targets' MSVC_RUNTIME_LIBRARY below, not here.
 # ------------------------------------------------------------------
-Set(CMAKE_CXX_FLAGS_RELEASE "/D_NDEBUG /MD /wd4005 /MP")
+Set(CMAKE_CXX_FLAGS_RELEASE "/O2 /Ob2 /DNDEBUG /D_NDEBUG /wd4005 /MP")
 
 # ------------------------------------------------------------------
 # Statically link runtime libraries for the loader
