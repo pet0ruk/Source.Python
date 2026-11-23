@@ -30,7 +30,7 @@
 typedef char DCsigchar;
 
 #define DC_SIGCHAR_VOID         'v'
-#define DC_SIGCHAR_BOOL         'B'
+#define DC_SIGCHAR_BOOL         'b'   /* Source.Python: 'B' upstream; kept as SP always had it (SP uses no signature strings) */
 #define DC_SIGCHAR_CHAR         'c'
 #define DC_SIGCHAR_UCHAR        'C'
 #define DC_SIGCHAR_SHORT        's'
