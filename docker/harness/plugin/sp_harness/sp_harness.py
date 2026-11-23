@@ -349,6 +349,7 @@ def phase_static():
     check('update.stage2', check_update_stage2)
     check('update.version_order', check_version_order)
     check('update.select_release', check_select_release)
+    check('perf.native_calls', check_native_call_speed)
 
     check('cvars.find_var', lambda: expect(
         __import__('cvars').cvar.find_var('sv_gravity') is not None, 'sv_gravity not found'))
@@ -619,6 +620,40 @@ def check_select_release():
            'source-python-css-1.2.3-py3.13.zip', 'asset name')
     expect(get_asset_name(Version('1.2.3'), 'tf2', '3.15', 'x64') ==
            'source-python-tf2-1.2.3-py3.15-x64.zip', 'x64 asset name')
+
+
+def check_native_call_speed():
+    """Time calls into core: a measurement to compare builds (e.g. compiler flags) on the same
+    runners, not a pass/fail check. Best of 3 runs, in milliseconds."""
+    from entities.helpers import index_from_edict
+    from entities.helpers import edict_from_index
+    from keyvalues import KeyValues
+    vector, kv, edict = Vector(1, 2, 3), KeyValues('sp_harness'), edict_from_index(0)
+
+    def best(fn, count):
+        times = []
+        for _ in range(3):
+            start = time.perf_counter()
+            fn(count)
+            times.append(time.perf_counter() - start)
+        return round(min(times) * 1000, 1)
+
+    def vectors(count):
+        for _ in range(count):
+            (vector + vector).length
+
+    def keyvalues(count):
+        for i in range(count):
+            kv.set_int('number', i)
+            kv.get_int('number')
+
+    def edicts(count):
+        for _ in range(count):
+            index_from_edict(edict)
+
+    return {'vector_add_length_100k': best(vectors, 100000),
+            'keyvalues_set_get_100k': best(keyvalues, 100000),
+            'index_from_edict_100k': best(edicts, 100000)}
 
 
 def check_convar():
