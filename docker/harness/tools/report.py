@@ -20,6 +20,17 @@ for line in vt_text.splitlines()[:-1]:
 failed |= vt_status == 'FAIL'
 
 srcds_rc = (out / 'srcds.rc').read_text().strip() if (out / 'srcds.rc').exists() else '?'
+
+
+def print_crash():
+    """The report tools/srcds-gdb.sh writes when the server crashes (Linux)."""
+    crash = out / 'crash.txt'
+    if crash.exists():
+        lines = crash.read_text(errors='replace').splitlines()
+        print(f'\n--- crash.txt (gdb; {len(lines)} lines, first 120)')
+        print('\n'.join(lines[:120]))
+
+
 results_file = out / 'results.json'
 if not results_file.exists():
     print(f'\nFAIL: no results.json (srcds exit {srcds_rc}). Last console lines:')
@@ -27,6 +38,7 @@ if not results_file.exists():
         path = out / name
         if path.exists():
             print(f'--- {name}'); print('\n'.join(path.read_text(errors='replace').splitlines()[-25:]))
+    print_crash()
     sys.exit(1)
 
 results = json.loads(results_file.read_text())
@@ -43,6 +55,7 @@ for name, entry in results['checks'].items():
         print('        ' + entry['error'].strip().replace('\n', '\n        '))
 if results.get('running'):
     print(f"\nFAIL: server stopped while running {results['running']!r} (crash?)")
+    print_crash()
     failed = True
 elif not results.get('finished'):
     print('\nFAIL: run did not finish (timeout?)')

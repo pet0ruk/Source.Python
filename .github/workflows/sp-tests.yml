@@ -108,6 +108,7 @@ jobs:
             ${{ env.OUT }}/harness/results.json
             ${{ env.OUT }}/harness/console.log
             ${{ env.OUT }}/harness/srcds_run.log
+            ${{ env.OUT }}/harness/crash.txt
             ${{ env.OUT }}/harness/gamedata-vtables.txt
             ${{ env.OUT }}/harness/source-python-logs/
 

@@ -92,7 +92,8 @@ docker run --rm --name "sp-harness-$GAME-$$" --security-opt seccomp=unconfined \
     --entrypoint bash "$IMAGE" -c '
         cp -a /sp/. "/srv/srcds/$GAME_DIR/"
         cd /srv/srcds
-        timeout -k 10 "$TIMEOUT" ./srcds_run -game "$GAME_DIR" -condebug -norestart \
+        timeout -k 10 "$TIMEOUT" ./srcds_run -binary /usr/local/bin/srcds-gdb \
+            -game "$GAME_DIR" -condebug -norestart \
             -insecure -nohltv +sv_lan 1 +sv_hibernate_when_empty 0 +maxplayers 8 \
             +map "$MAP" +exec sp_harness.cfg > /out/srcds_run.log 2>&1
         echo $? > /out/srcds.rc
