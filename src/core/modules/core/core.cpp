@@ -45,6 +45,13 @@ void ConsoleMessage(const char* msg)
 
 void* GetInterface(const char* library, const char* interface_name)
 {
+#ifdef _WIN32
+	// dynload doesn't let LoadLibrary add ".dll" to a name without one (since dyncall 1.1).
+	std::string path = library;
+	if (path.size() < 4 || _stricmp(path.c_str() + path.size() - 4, ".dll") != 0)
+		path += ".dll";
+	library = path.c_str();
+#endif
 	DLLib* lib = dlLoadLibrary(library);
 	if (!lib)
 		BOOST_RAISE_EXCEPTION(PyExc_ValueError, "Unable to load library '%s'.", library)
