@@ -21,15 +21,15 @@
 #      SP_PYTHON_RUNTIME_ARCHIVE  a local bundle archive to use instead
 #                                 of downloading (not checksum-verified)
 # ------------------------------------------------------------------
-Set(SP_PYTHON_RUNTIME_RELEASE  3.13.17-r2)
+Set(SP_PYTHON_RUNTIME_RELEASE  3.13.17-r3)
 If(WIN32)
     Set(SP_PYTHON_RUNTIME_PLATFORM win32)
     Set(SP_PYTHON_RUNTIME_EXT      zip)
-    Set(SP_PYTHON_RUNTIME_SHA256   c7de0fcb0453d6ac0957c1e3d7be8eba15f08a1356d79fe9779fb788a10d6ba6)
+    Set(SP_PYTHON_RUNTIME_SHA256   9cd5dd4f94e022bd511ee1f5aeca947eb12e7d02bc5328e2a265a5cc293da602)
 Else()
     Set(SP_PYTHON_RUNTIME_PLATFORM manylinux_2_28_i686)
     Set(SP_PYTHON_RUNTIME_EXT      tar.gz)
-    Set(SP_PYTHON_RUNTIME_SHA256   744a68b3eab373d09ee3f3a37152477771e893ae113aaf4816784ef64b400bb4)
+    Set(SP_PYTHON_RUNTIME_SHA256   cdbd883171d70f84f228eda26e48e70f9d3ef199dbae017c1aa91fa84cfa91d7)
 EndIf()
 Set(SP_PYTHON_RUNTIME_URL_BASE https://github.com/pet0ruk/source-python-runtime/releases/download)
 
