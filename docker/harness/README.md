@@ -17,15 +17,12 @@ check passed; skips and known issues don't fail a run. Needs Docker, `jq` and Py
 ## What a run does
 
 1. Pulls `ghcr.io/pet0ruk/srcds:<game>` and builds `sp-harness:<game>` on top of it
-   (`Dockerfile`): adds the system libraries the Python bundled with older releases (v743 and
-   earlier) links against (libffi 7 and OpenSSL 1.1 from Ubuntu 20.04, libbz2/liblzma/libuuid/libpq
-   from Debian). With `REMOVE_GAME_LIBSTDCXX=1` it also removes L4D2's bundled
-   `libstdc++`/`libgcc_s`, which those older releases need; current builds link libstdc++
-   statically and run against the game as shipped.
+   (`Dockerfile`): the server as shipped, except for a game's bundled `libstdc++`/`libgcc_s`
+   when `games.json` asks for it (`remove_game_libstdcxx`: CS:GO). Nothing is added for
+   Source.Python: it links libstdc++ statically and its Python runtime brings its own
+   libraries, so a run also shows the release needs nothing from the system.
 2. Stages the release (zip or directory) into `<out>/sp`, optionally overlays the repository
-   (`OVERLAY_REPO=1`), adds the `sp_harness` plugin and clears the executable-stack flag on
-   `core.so` (`tools/clear_execstack.py`; glibc >= 2.41 refuses to load it otherwise, set
-   `KEEP_EXECSTACK=1` to test as shipped).
+   (`OVERLAY_REPO=1`) and adds the `sp_harness` plugin.
 3. Offline gamedata check: `tools/vtdump.py` compares every `[virtual_function]` entry that has a
    mangled-name comment with the vtables in the image's `server_srv.so`, using the same
    engine/game merge order as `GameConfigObj`.
@@ -61,11 +58,8 @@ can only show that the call didn't fail, because only a real game client could s
 messages, menus and temp entities sent to bots (fake clients receive nothing), and anything that
 needs a client to answer (`OnQueryCvarValueFinished`, menu selections).
 
-Known issues are reported as `XFAIL` (and `XPASS` once they start passing):
-`runtime.site_packages_speedups` on releases with the old vendored Python (SOABI
-`cpython-313-x86_64-linux-gnu`, an i686 build configured as x86_64): the markupsafe and
-charset_normalizer speedups are built for the i386 tag, so they never load. With a correctly
-built runtime (SOABI `...-i386-linux-gnu`) it is a normal check.
+Known issues are reported as `XFAIL` (and `XPASS` once they start passing); there are none at
+the moment.
 
 ## Windows
 
@@ -97,11 +91,11 @@ stripped, so the symbol checks are skipped.
 ## Files
 
 - `run.sh` — runner; see the header for environment variables (`SRCDS_IMAGE`, `PULL`,
-  `RUNTIME=bare`, `KEEP_EXECSTACK`, `REMOVE_GAME_LIBSTDCXX`, `TIMEOUT`, `OVERLAY_REPO`)
-- `Dockerfile` — test runtime on top of `srcds:<game>`
+  `GAMES_JSON`, `TIMEOUT`, `OVERLAY_REPO`, `NO_UPDATE`)
+- `Dockerfile` — the test image on top of `srcds:<game>`
 - `plugin/sp_harness/sp_harness.py` — the in-server checks
 - `tools/vtdump.py` — vtable dump / gamedata check for 32-bit ELF binaries
   (`vtdump.py <server_srv.so> dump <Class>`)
 - `run-windows.sh` — the Windows runner (see above)
 - `tools/oci_extract.py` — extract a public image's files without Docker
-- `tools/clear_execstack.py`, `tools/report.py`
+- `tools/report.py`
