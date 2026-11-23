@@ -17,7 +17,7 @@ on:
         required: true
         type: choice
         default: all
-        options: [all, tf2, css, dods, hl2dm, l4d2]
+        options: [all, tf2, css, dods, hl2dm, l4d2, csgo]
       platform:
         description: Platform to build
         required: true
@@ -82,9 +82,9 @@ jobs:
       - uses: actions/checkout@v7 # v7.0.1
 
       # Disk space: not needed at the moment. The current ubuntu-latest image (Ubuntu 26.04)
-      # has ~87 GB free on / out of the box, and the largest build (l4d2: 9.2 GB download,
-      # 7 GB pruned) needs well under that. Re-enable both steps below if a bigger game is
-      # added (e.g. CS:GO: 33 GB download + 28 GB copy) or the runner image shrinks.
+      # has ~87 GB free on / out of the box, and the largest build (CS:GO: a 28 GB download,
+      # unpacked to 4.4 GB in the same RUN) needs well under that. Re-enable both steps below
+      # if a bigger game is added or the runner image shrinks.
       #
       # Notes for when it is re-enabled:
       # - The build runs in the buildx builder, whose state volume lives under
@@ -139,6 +139,8 @@ jobs:
             REQUIRED_VERSION=${{ matrix.version }}
             WINDOWS_FIRST=${{ matrix.windows_first }}
             VERIFY_VERSION=${{ matrix.verify_version }}
+            VPK_STRIP=${{ matrix.vpk_strip }}
+            PRUNE=${{ matrix.prune }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}

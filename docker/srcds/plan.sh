@@ -4,7 +4,8 @@
 # For each selected game in games.json: ask Steam (ISteamApps/UpToDateCheck) for the version
 # servers must run; then, for each selected platform, read the steam.required_version label of
 # the platform's image with skopeo and select it when they differ, the image doesn't exist /
-# can't be read, or FORCE=true. Platforms: linux (<image>:<game>, a runnable server) and
+# can't be read, or FORCE=true. A game without version_app_id (no version Steam can check, e.g.
+# CS:GO, whose server no longer changes) is only built when its image doesn't exist. Platforms: linux (<image>:<game>, a runnable server) and
 # windows (<image>:<game>-windows, the Windows server files; see the Dockerfile's targets).
 #
 # Env:  GAME      "all" or a key of games.json (default all)
@@ -17,7 +18,7 @@
 #       SKOPEO    skopeo command (default "skopeo"; e.g. "docker run --rm quay.io/skopeo/stable")
 #       REGISTRY_USER / REGISTRY_PASSWORD  optional credentials for skopeo
 # Out:  matrix=<JSON array of {game, platform, tag, app_id, game_dir, map, windows_first,
-#       verify_version, version, image, stamp, tags}> and count=<n> in $GITHUB_OUTPUT (or
+#       verify_version, version, image, stamp, tags, vpk_strip, prune}> and count=<n> in $GITHUB_OUTPUT (or
 #       stdout); a table in $GITHUB_STEP_SUMMARY when set. <tag> is <game> (linux) or
 #       <game>-windows. Each image is tagged <image>:<tag> (moving, what the version check
 #       reads) and <image>:<tag>-<STAMP> (lets the build job find and delete the previous
@@ -67,13 +68,18 @@ for g in $games; do
     for platform in $platforms; do
         tag=$g; [ "$platform" = linux ] || tag="$g-$platform"
 
-        current=""
+        current="" exists=""
         if labels=$($SKOPEO inspect --no-tags "${creds[@]}" "docker://$image:$tag" 2>/dev/null); then
+            exists=1
             current=$(jq -r '.Labels["steam.required_version"] // empty' <<<"$labels")
         fi
 
         if [ "$FORCE" = true ]; then
             action="build (forced)"
+        elif [ -z "$version_app_id" ] && [ -n "$exists" ]; then
+            action="up to date"
+        elif [ -z "$version_app_id" ]; then
+            action="build (no image)"
         elif [ -z "$current" ]; then
             action="build (no image / no label)"
         elif [ -z "$version" ] || [ "$version" != "$current" ]; then
@@ -92,10 +98,11 @@ for g in $games; do
             --arg version "$version" --arg image "$image" --arg tags "$tags" --arg stamp "$STAMP" \
             --arg windows_first "$( [ "$(cfg windows_first)" = true ] && echo 1 || true )" \
             --arg verify_version "$( [ "$(cfg verify_version)" = false ] && echo 0 || echo 1 )" \
+            --arg vpk_strip "$(cfg vpk_strip)" --arg prune "$(cfg prune)" \
             '. + [{game: $game, platform: $platform, tag: $tag, app_id: $app_id,
                    game_dir: $game_dir, map: $map, windows_first: $windows_first,
                    verify_version: $verify_version, version: $version, image: $image,
-                   stamp: $stamp, tags: $tags}]' <<<"$matrix")
+                   stamp: $stamp, tags: $tags, vpk_strip: $vpk_strip, prune: $prune}]' <<<"$matrix")
     done
 done
 

@@ -3,7 +3,7 @@
 #
 #   docker/harness/run.sh <game> <source-python release .zip | extracted dir> [out-dir]
 #
-#   <game>     a key of docker/srcds/games.json (tf2, css, dods, hl2dm, l4d2)
+#   <game>     a key of docker/srcds/games.json (tf2, css, dods, hl2dm, l4d2, csgo)
 #   out-dir    default ./sp-harness-out/<game>; receives results.json, console.log,
 #              Source.Python's logs and the gamedata check output
 #
@@ -16,7 +16,8 @@
 #                   Python needs (docker/harness/Dockerfile); useful for testing builds that
 #                   ship their own
 #   REMOVE_GAME_LIBSTDCXX=1  remove the game's bundled libstdc++/libgcc_s (L4D2), which older
-#                   releases need to load (current ones link libstdc++ statically)
+#                   releases need to load (current ones link libstdc++ statically); on by
+#                   default for games with "remove_game_libstdcxx": true in games.json (CS:GO)
 #   KEEP_EXECSTACK=1  don't clear the executable-stack flag on core.so (glibc >= 2.41, as in
 #                   the images, then refuses to load it)
 #   TIMEOUT         seconds before the server is killed (default 240)
@@ -38,6 +39,10 @@ TIMEOUT=${TIMEOUT:-240}
 cfg() { jq -er --arg g "$GAME" ".[\$g].$1" "$GAMES_JSON"; }
 cfg app_id >/dev/null || { echo "unknown game '$GAME' (see $GAMES_JSON)" >&2; exit 2; }
 GAME_DIR=$(cfg game_dir); MAP=$(cfg map); ENGINE=$(cfg sp_engine)
+# games.json can ask for it (CS:GO: its bundled libgcc_s breaks the image's libstdc++)
+if [ -z "${REMOVE_GAME_LIBSTDCXX:-}" ] && [ "$(cfg remove_game_libstdcxx 2>/dev/null)" = true ]; then
+    REMOVE_GAME_LIBSTDCXX=1
+fi
 BASE="$SRCDS_IMAGE:$GAME"
 
 echo ">> image $BASE"

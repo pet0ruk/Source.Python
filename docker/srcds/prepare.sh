@@ -6,7 +6,10 @@
 #      PLATFORM (linux (default) or windows: which server build steamcmd downloads),
 #      REQUIRED_VERSION (optional; if set, must equal the version in <GAME_DIR>/steam.inf
 #      unless VERIFY_VERSION=0), WINDOWS_FIRST (1 = install as Windows first, for L4D2's
-#      Linux build; ignored for PLATFORM=windows).
+#      Linux build; ignored for PLATFORM=windows),
+#      VPK_STRIP (optional; "<path>_dir.vpk:<ext>,<ext>,...": unpack that VPK as loose files
+#      without those extensions and delete it, see vpk_strip.py), PRUNE (optional;
+#      space-separated globs, relative to the install, of files/directories to delete).
 set -euo pipefail
 : "${APP_ID:?}" "${GAME_DIR:?}" "${KEEP_MAP:?}"
 PLATFORM=${PLATFORM:-linux}
@@ -54,6 +57,23 @@ done
 if ! [ -f "$DIR/$GAME_DIR/maps/$KEEP_MAP.bsp" ]; then
     echo ">> note: $GAME_DIR/maps/$KEEP_MAP.bsp not present as a loose file (packed in a VPK?)"
 fi
+
+# Client content a dedicated server doesn't load (textures, audio, UI), for games whose server
+# ships it (games.json: vpk_strip, prune).
+if [ -n "${VPK_STRIP:-}" ]; then
+    python3 -I /usr/local/bin/vpk_strip.py "$DIR/${VPK_STRIP%%:*}" "${VPK_STRIP#*:}"
+fi
+# split PRUNE into patterns without expanding them here (nullglob would drop any that match
+# nothing in the current directory); each is expanded under $DIR
+set -f; read -ra patterns <<<"${PRUNE:-}"; set +f
+for pattern in "${patterns[@]}"; do
+    case "$pattern" in /*|*..*) echo "!! PRUNE pattern '$pattern' must be relative" >&2; exit 1 ;; esac
+    # shellcheck disable=SC2086  # the pattern is a glob
+    matches=("$DIR"/$pattern)
+    [ "${#matches[@]}" -gt 0 ] || { echo "!! PRUNE pattern '$pattern' matches nothing" >&2; exit 1; }
+    echo ">> pruning $pattern (${#matches[@]})"
+    rm -rf "${matches[@]}"
+done
 
 # Steam bookkeeping that isn't needed to run the server.
 rm -rf "$DIR/steamapps/downloading" "$DIR/steamapps/temp" "$DIR/steamapps/shadercache"

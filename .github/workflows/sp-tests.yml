@@ -12,7 +12,7 @@ on:
         required: true
         type: choice
         default: all
-        options: [all, tf2, css, dods, hl2dm, l4d2]
+        options: [all, tf2, css, dods, hl2dm, l4d2, csgo]
       platform:
         description: Platform to test
         required: true

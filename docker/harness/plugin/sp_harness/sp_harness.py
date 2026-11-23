@@ -680,6 +680,8 @@ def phase_players():
         check('players.take_damage', lambda: check_take_damage(player))
         check('messages.send', lambda: check_messages(player))
         check('menus.send', lambda: check_menus(player))
+        if SOURCE_ENGINE == 'csgo':
+            check('entities.smoke_grenade_detonate', lambda: start_smoke_detonate(player))
         # the engine runs it as if the bot had typed it; checked in finish()
         player.client_command('sp_harness_client 42 text', server_side=True)
         PLAYER_FOR_CLIENT_COMMAND.append(player.index)
@@ -767,8 +769,13 @@ def check_take_damage(player):
     """The damage reaches the game (the bot's health drops, as IPlayerInfo reports it) and
     the on_take_damage hook sees it."""
     before = COUNTS['entity_pre_hook.on_take_damage']
+    if SOURCE_ENGINE == 'csgo':
+        # bots are immune for a while after spawning in warmup, and damage is ignored
+        player.set_network_property_bool('m_bGunGameImmunity', False)
+        player.set_network_property_float('m_fImmuneToGunGameDamageTime', 0.0)
     health = player.playerinfo.health
-    player.take_damage(1)
+    # 10, not 1: armour halves damage and CS:GO bots spawn with it (1 would round to 0)
+    player.take_damage(10)
     expect(COUNTS['entity_pre_hook.on_take_damage'] > before, 'on_take_damage hook not called')
     expect(player.playerinfo.health < health, f'health {health} -> {player.playerinfo.health}')
     return f'health {health} -> {player.playerinfo.health}'
@@ -806,9 +813,42 @@ def finish():
     if PLAYER_FOR_CLIENT_COMMAND:
         check('commands.client_command', check_client_command)
     check('events.custom_event', check_custom_events)
+    if SMOKE_EXPECTED:
+        check('entities.smoke_grenade_detonate_event', check_smoke_detonate)
     RESULTS['finished'] = True
     save()
     queue_command_string('quit')
+
+
+#: smokegrenade_detonate events: (entityid, userid); and the projectile/thrower it expects.
+SMOKE_EVENTS = []
+SMOKE_EXPECTED = []
+
+
+def _on_smoke_detonate(game_event):
+    SMOKE_EVENTS.append((game_event['entityid'], game_event['userid']))
+
+
+def start_smoke_detonate(player):
+    """Call a [function] gamedata entry found by byte signature (CSmokeGrenadeProjectile
+    .detonate, i.e. SmokeDetonate) on a smoke grenade projectile thrown by a bot; the game then
+    fires smokegrenade_detonate for it (checked in finish()), which shows the signature found
+    that function and the call worked, not only that the bytes were found."""
+    from events.manager import event_manager
+    event_manager.register_for_event('smokegrenade_detonate', _on_smoke_detonate)
+    grenade = Entity.create('smokegrenade_projectile')
+    grenade.origin = player.origin + Vector(0, 0, 16)
+    grenade.thrower = player.inthandle
+    grenade.owner_handle = player.inthandle
+    grenade.spawn()
+    SMOKE_EXPECTED.append((grenade.index, player.userid))
+    grenade.detonate()
+    return SMOKE_EXPECTED[0]
+
+
+def check_smoke_detonate():
+    expect(SMOKE_EXPECTED[0] in SMOKE_EVENTS, (SMOKE_EXPECTED, SMOKE_EVENTS))
+    return SMOKE_EVENTS
 
 
 def check_console_convar_changes():
