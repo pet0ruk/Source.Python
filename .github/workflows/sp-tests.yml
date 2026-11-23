@@ -142,6 +142,7 @@ jobs:
       - name: Run tests on srcds:${{ matrix.game }}-windows
         env:
           SRCDS_IMAGE: ghcr.io/${{ github.repository_owner }}/srcds
+          CRASH_DUMPS: 1
         run: |
           set -o pipefail
           docker/harness/run-windows.sh "$GAME" "$OUT/build/release" "$OUT/harness" | tee "$OUT/report.txt"
@@ -169,4 +170,7 @@ jobs:
             ${{ runner.temp }}/sp-out/harness/results.json
             ${{ runner.temp }}/sp-out/harness/console.log
             ${{ runner.temp }}/sp-out/harness/srcds_run.log
+            ${{ runner.temp }}/sp-out/harness/srcds.exitcode
+            ${{ runner.temp }}/sp-out/harness/crash.txt
+            ${{ runner.temp }}/sp-out/harness/dumps/
             ${{ runner.temp }}/sp-out/harness/source-python-logs/

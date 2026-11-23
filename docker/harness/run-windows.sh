@@ -18,6 +18,9 @@
 #   OVERLAY_REPO=1  copy this repository's tracked addons/cfg/resource/sound files over the
 #                   release, as in run.sh
 #   NO_UPDATE=1     don't stage an update for the loader to apply on start, as in run.sh
+#   CRASH_DUMPS=1   have Windows Error Reporting write a minidump of srcds.exe if it crashes
+#                   (into <out>/dumps; sets HKLM registry values, so it needs admin rights: CI),
+#                   and analyse it with cdb.exe, if installed, into <out>/crash.txt
 #
 # The offline gamedata vtable check (run.sh) needs the symbols of the Linux server binary, so it
 # is reported as skipped; this run is what exercises the Windows offsets and signatures.
@@ -80,6 +83,19 @@ echo ">> running $GAME_DIR on $MAP (timeout ${TIMEOUT}s)"
 # also copied to srcds_run.log. On a timeout the process tree is killed and the exit code is 124.
 set +e
 SERVER_WIN=$(cygpath -w "$SERVER_DIR")
+OUT_WIN=$(cygpath -w "$OUT")
+rm -rf "$OUT/dumps" "$OUT/crash.txt" "$OUT/srcds.exitcode"
+if [ "${CRASH_DUMPS:-}" = 1 ]; then
+    mkdir -p "$OUT/dumps"
+    powershell.exe -NoProfile -NonInteractive -Command "
+        \$wer = 'HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting'
+        New-Item -Force -Path \"\$wer\LocalDumps\srcds.exe\" | Out-Null
+        Set-ItemProperty -Path \"\$wer\LocalDumps\srcds.exe\" -Name DumpFolder -Type ExpandString -Value '$OUT_WIN\dumps'
+        Set-ItemProperty -Path \"\$wer\LocalDumps\srcds.exe\" -Name DumpType -Type DWord -Value 1
+        Set-ItemProperty -Path \"\$wer\LocalDumps\srcds.exe\" -Name DumpCount -Type DWord -Value 3
+        Set-ItemProperty -Path \$wer -Name DontShowUI -Type DWord -Value 1" \
+        || echo ">> could not enable crash dumps (needs admin rights)"
+fi
 ARGS="-console -game $GAME_DIR -condebug -norestart -insecure -nohltv +sv_lan 1 +sv_hibernate_when_empty 0 +maxplayers 8 +map $MAP +exec sp_harness.cfg"
 powershell.exe -NoProfile -NonInteractive -Command "
     \$p = Start-Process -FilePath (Join-Path '$SERVER_WIN' 'srcds.exe') -WorkingDirectory '$SERVER_WIN' \
@@ -88,8 +104,35 @@ powershell.exe -NoProfile -NonInteractive -Command "
         & taskkill.exe /T /F /PID \$p.Id | Out-Null
         exit 124
     }
+    # the full exit code (Git Bash keeps only its low 8 bits): e.g. 0xC0000005 for a crash
+    Set-Content -Path '$OUT_WIN\srcds.exitcode' -Value ('0x{0:X8}' -f \$p.ExitCode)
     exit \$p.ExitCode" > "$OUT/powershell.log" 2>&1
 echo $? > "$OUT/srcds.rc"
+# a crash dump, if Windows wrote one (it may appear shortly after the process has gone): the
+# crashing stack (and all threads') with cdb
+dump=""
+if [ "${CRASH_DUMPS:-}" = 1 ] && [ "$(cat "$OUT/srcds.rc")" != 0 ]; then
+    for _ in $(seq 1 20); do
+        dump=$(ls "$OUT"/dumps/*.dmp 2>/dev/null | head -1)
+        [ -z "$dump" ] || break
+        sleep 1
+    done
+fi
+if [ -n "$dump" ]; then
+    cdb=""
+    for c in "/c/Program Files (x86)/Windows Kits/10/Debuggers/x86/cdb.exe" \
+             "/c/Program Files/Windows Kits/10/Debuggers/x86/cdb.exe"; do
+        [ -x "$c" ] && cdb=$c && break
+    done
+    if [ -n "$cdb" ]; then
+        {   echo "==== srcds crashed (exit code $(cat "$OUT/srcds.exitcode" 2>/dev/null)): $(basename "$dump") ===="
+            "$cdb" -z "$(cygpath -w "$dump")" -y "srv*$(cygpath -w "$OUT")\\symbols*https://msdl.microsoft.com/download/symbols" \
+                -c ".ecxr; .echo ==== crashing thread ====; kv 50; .echo ==== all threads ====; ~*kb 25; .echo ==== modules ====; lm; q" 2>&1
+        } > "$OUT/crash.txt"
+    else
+        echo "==== srcds crashed: $(basename "$dump") (no cdb.exe to analyse it) ====" > "$OUT/crash.txt"
+    fi
+fi
 cp "$G/console.log" "$OUT/console.log" 2>/dev/null
 cp "$G/console.log" "$OUT/srcds_run.log" 2>/dev/null
 cat "$OUT/powershell.log" >> "$OUT/srcds_run.log" 2>/dev/null

@@ -20,14 +20,17 @@ for line in vt_text.splitlines()[:-1]:
 failed |= vt_status == 'FAIL'
 
 srcds_rc = (out / 'srcds.rc').read_text().strip() if (out / 'srcds.rc').exists() else '?'
+if (out / 'srcds.exitcode').exists():        # Windows: the full exit code
+    srcds_rc += f" = {(out / 'srcds.exitcode').read_text().strip()}"
 
 
 def print_crash():
-    """The report tools/srcds-gdb.sh writes when the server crashes (Linux)."""
+    """The report written when the server crashes: by tools/srcds-gdb.sh (Linux) or from
+    Windows Error Reporting's dump (run-windows.sh, CRASH_DUMPS=1)."""
     crash = out / 'crash.txt'
     if crash.exists():
         lines = crash.read_text(errors='replace').splitlines()
-        print(f'\n--- crash.txt (gdb; {len(lines)} lines, first 120)')
+        print(f'\n--- crash.txt ({len(lines)} lines, first 120)')
         print('\n'.join(lines[:120]))
 
 
@@ -60,6 +63,10 @@ if results.get('running'):
 elif not results.get('finished'):
     print('\nFAIL: run did not finish (timeout?)')
     failed = True
+elif (out / 'crash.txt').exists():
+    # every check ran; the server crashed while shutting down (not counted as a failure yet)
+    print('\nWARNING: the server crashed after the checks had finished (shutting down)')
+    print_crash()
 failed |= counts['fail'] > 0
 print(f"\n{counts['pass']} passed, {counts['fail']} failed, {counts['skip']} skipped, "
       f"{counts['xfail']} known issues, {counts['xpass']} known issues now passing"
