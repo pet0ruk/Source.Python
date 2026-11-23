@@ -53,7 +53,10 @@
 
 DLLib* dlLoadLibrary(const char* libPath)
 {
-  return (DLLib*)dlopen(libPath, RTLD_NOW|RTLD_GLOBAL); /*@@@ should use RTLD_LAZY, maybe?*/
+  /* Source.Python: RTLD_NOW only, as in dyncall 0.7. Source.Python opens libraries the engine
+     has already loaded (find_binary: server_srv.so, ...); RTLD_GLOBAL would make their symbols
+     global for everything loaded afterwards. */
+  return (DLLib*)dlopen(libPath, RTLD_NOW);
 }
 
 

@@ -12,5 +12,6 @@ vendored as source because the upstream repository and site aren't reliably avai
 - Licence: ISC, see `LICENSE`.
 
 Source.Python changes three settings in `dyncall/dyncall_config.h` and
-`dyncall/dyncall_signature.h`, each marked with a `Source.Python:` comment. They are made in a
-separate commit on top of the stock release, so `git log -p -- src/thirdparty/dyncall` shows them.
+`dyncall/dyncall_signature.h`, and the `dlopen` flags in `dynload/dynload_unix.c` (kept as in 0.7),
+each marked with a `Source.Python:` comment. They are made in separate commits on top of the stock
+release, so `git log -p -- src/thirdparty/dyncall` shows them.
