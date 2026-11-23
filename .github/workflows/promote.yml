@@ -1,0 +1,47 @@
+# Makes a pre-release that release.yml built and tested (and left as a pre-release) a full
+# release, and the latest one: sp update then installs it. Run by hand (Actions > Promote
+# release > Run workflow).
+name: Promote release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag of the pre-release to promote (e.g. v1.2.3)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ inputs.tag }}
+  cancel-in-progress: false
+
+env:
+  TAG: ${{ inputs.tag }}
+  GH_TOKEN: ${{ github.token }}
+  GH_REPO: ${{ github.repository }}
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7 # v7.0.1
+
+      - name: Check the release
+        run: |
+          docker/release/check-release.sh "$TAG" true
+          # built by release.yml: a zip per game and the checksums
+          assets=$(gh release view "$TAG" --json assets -q '.assets[].name')
+          echo "$assets"
+          grep -qx SHA256SUMS <<< "$assets" || { echo "!! $TAG has no SHA256SUMS" >&2; exit 1; }
+          for game in $(ls src/makefiles/branch/*.cmake | xargs -n1 basename | sed 's/\.cmake$//' | grep -vx gmod); do
+            grep -q "^source-python-$game-${TAG#v}-py[0-9.]*\.zip$" <<< "$assets" \
+              || { echo "!! $TAG has no zip for $game" >&2; exit 1; }
+          done
+
+      - name: Promote
+        run: |
+          gh release edit "$TAG" --prerelease=false --latest
+          echo "$TAG is now the latest release." >> "$GITHUB_STEP_SUMMARY"

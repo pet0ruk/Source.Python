@@ -1,0 +1,304 @@
+# Builds, tests and publishes a release.
+#
+# To release: in GitHub's UI, draft a new release with a new tag v<MAJOR>.<MINOR>.<PATCH> (or
+# v<MAJOR>.<MINOR>.<PATCH>-<pre-release>, e.g. v1.2.0-rc.1) on the commit to release, write the
+# release notes, tick "Set as a pre-release" and publish it. That starts this workflow, which
+#   1. builds every game for Linux and Windows from the tag, with the version stamped into
+#      core/version.py (docker/release/stamp-version.sh)
+#   2. merges each game's two builds into source-python-<game>-<version>-py<series>.zip
+#      (docker/release/package.py)
+#   3. runs the tests (docker/harness) on the zips of the games in docker/srcds/games.json, on
+#      both platforms
+#   4. uploads the zips and SHA256SUMS to the release and, for a version without a pre-release
+#      part, makes it a full release and the latest one: from then on, sp update installs it.
+#
+# If anything fails, the release stays a pre-release, which sp update ignores. Running this
+# workflow by hand (Actions > Release > Run workflow) builds an existing pre-release again,
+# replacing its files, with the choice of promoting it; promote.yml promotes one as it is.
+#
+# On a pull request that changes the release files, everything but publishing runs (a dry run,
+# version 0.0.0-pr.<number>).
+name: Release
+
+on:
+  release:
+    types: [prereleased]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag of the pre-release to build (e.g. v1.2.3)
+        required: true
+        type: string
+      promote:
+        description: Make it a full release (and the latest) once built and tested
+        type: boolean
+        default: true
+  pull_request:
+    paths:
+      - .github/workflows/release.yml
+      - docker/release/**
+      - docker/build/**
+
+permissions:
+  contents: write
+  packages: read
+
+concurrency:
+  group: release-${{ github.event.release.tag_name || inputs.tag || github.event.pull_request.number }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  TAG: ${{ github.event.release.tag_name || inputs.tag || format('v0.0.0-pr.{0}', github.event.pull_request.number) }}
+  DRY_RUN: ${{ github.event_name == 'pull_request' }}
+  GH_TOKEN: ${{ github.token }}
+  GH_REPO: ${{ github.repository }}
+
+jobs:
+  meta:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      promote: ${{ steps.check.outputs.promote }}
+      sha: ${{ steps.meta.outputs.sha }}
+      epoch: ${{ steps.meta.outputs.epoch }}
+      series: ${{ steps.meta.outputs.series }}
+      games: ${{ steps.meta.outputs.games }}
+      tested: ${{ steps.meta.outputs.tested }}
+    steps:
+      - uses: actions/checkout@v7 # v7.0.1
+        with:
+          ref: ${{ env.DRY_RUN == 'true' && github.sha || format('refs/tags/{0}', env.TAG) }}
+
+      - id: check
+        env:
+          # a pre-release version (-rc.1 etc.) is never promoted; otherwise the input decides,
+          # and a published pre-release is promoted
+          PROMOTE: ${{ github.event_name == 'workflow_dispatch' && inputs.promote || github.event_name == 'release' }}
+        run: |
+          if [ "$DRY_RUN" = true ]; then
+            printf 'version=%s\nstable=false\npromote=false\n' "${TAG#v}" | tee -a "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          promote=$PROMOTE
+          [[ $TAG == *-* ]] && promote=false
+          docker/release/check-release.sh "$TAG" "$promote" | tee -a "$GITHUB_OUTPUT"
+
+      - id: meta
+        run: |
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "epoch=$(git log -1 --format=%ct)" >> "$GITHUB_OUTPUT"
+          series=$(sed -n 's/^Set(SP_PYTHON_RUNTIME_RELEASE *\([0-9]\+\.[0-9]\+\)\..*/\1/p' src/makefiles/python-runtime.cmake)
+          [ -n "$series" ] || { echo "!! no Python series in python-runtime.cmake" >&2; exit 1; }
+          echo "series=$series" >> "$GITHUB_OUTPUT"
+          # every build branch except gmod (not released); the tests cover those in games.json
+          echo "games=$(ls src/makefiles/branch/*.cmake | xargs -n1 basename | sed 's/\.cmake$//' \
+            | grep -vx gmod | jq -Rcs 'split("\n") | map(select(. != ""))')" >> "$GITHUB_OUTPUT"
+          echo "tested=$(jq -c keys_unsorted docker/srcds/games.json)" >> "$GITHUB_OUTPUT"
+          cat "$GITHUB_OUTPUT"
+
+  build:
+    needs: meta
+    name: build (${{ matrix.game }}, ${{ matrix.platform }})
+    runs-on: ${{ matrix.platform == 'windows' && 'windows-latest' || 'ubuntu-latest' }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        game: ${{ fromJSON(needs.meta.outputs.games) }}
+        platform: [linux, windows]
+    defaults:
+      run:
+        shell: bash
+    env:
+      GAME: ${{ matrix.game }}
+      PLATFORM: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v7 # v7.0.1
+        with:
+          ref: ${{ needs.meta.outputs.sha }}
+
+      - name: Output directory
+        run: echo "OUT=$(cygpath -u "$RUNNER_TEMP" 2>/dev/null || echo "$RUNNER_TEMP")/sp-out" >> "$GITHUB_ENV"
+
+      - name: Stamp the version
+        run: docker/release/stamp-version.sh "${{ needs.meta.outputs.version }}" "${{ needs.meta.outputs.sha }}"
+
+      - name: Build Source.Python (${{ matrix.game }}, ${{ matrix.platform }})
+        run: |
+          if [ "$PLATFORM" = windows ]; then
+            docker/build/build-windows.sh "$GAME" "$OUT/build"
+          else
+            docker/build/build.sh "$GAME" "$OUT/build"
+          fi
+          tar -C "$OUT/build" -cf "$OUT/release.tar" release hl2sdk.txt python-runtime.txt
+
+      - uses: actions/upload-artifact@v7 # v7.0.2
+        with:
+          name: build-${{ matrix.game }}-${{ matrix.platform }}
+          path: ${{ runner.temp }}/sp-out/release.tar
+          retention-days: 7
+
+      - name: Upload the build log
+        if: failure()
+        uses: actions/upload-artifact@v7 # v7.0.2
+        with:
+          name: build-log-${{ matrix.game }}-${{ matrix.platform }}
+          if-no-files-found: ignore
+          path: ${{ runner.temp }}/sp-out/build/build.log
+
+  package:
+    needs: [meta, build]
+    name: package (${{ matrix.game }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        game: ${{ fromJSON(needs.meta.outputs.games) }}
+    env:
+      GAME: ${{ matrix.game }}
+      ZIP: source-python-${{ matrix.game }}-${{ needs.meta.outputs.version }}-py${{ needs.meta.outputs.series }}.zip
+    steps:
+      - uses: actions/checkout@v7 # v7.0.1
+        with:
+          ref: ${{ needs.meta.outputs.sha }}
+
+      - uses: actions/download-artifact@v7 # v7.0.0
+        with:
+          pattern: build-${{ matrix.game }}-*
+          path: builds
+
+      - name: Merge the Linux and Windows builds
+        env:
+          SOURCE_DATE_EPOCH: ${{ needs.meta.outputs.epoch }}
+        run: |
+          for platform in linux windows; do
+            mkdir -p "trees/$platform"
+            tar -C "trees/$platform" -xf "builds/build-$GAME-$platform/release.tar"
+            echo "$platform: hl2sdk $(cat "trees/$platform/hl2sdk.txt"), $(grep '^release=' "trees/$platform/python-runtime.txt")"
+          done
+          mkdir dist
+          python3 -I docker/release/package.py trees/linux/release trees/windows/release "dist/$ZIP"
+
+      - uses: actions/upload-artifact@v7 # v7.0.2
+        with:
+          name: zip-${{ matrix.game }}
+          path: dist/${{ env.ZIP }}
+          retention-days: 7
+
+  # The tests of sp-tests.yml, on the release zips.
+  test:
+    needs: [meta, package]
+    name: test (${{ matrix.game }}, ${{ matrix.platform }})
+    runs-on: ${{ matrix.platform == 'windows' && 'windows-latest' || 'ubuntu-latest' }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        game: ${{ fromJSON(needs.meta.outputs.tested) }}
+        platform: [linux, windows]
+    defaults:
+      run:
+        shell: bash
+    env:
+      GAME: ${{ matrix.game }}
+      PLATFORM: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v7 # v7.0.1
+        with:
+          ref: ${{ needs.meta.outputs.sha }}
+
+      - name: Output directory
+        run: echo "OUT=$(cygpath -u "$RUNNER_TEMP" 2>/dev/null || echo "$RUNNER_TEMP")/sp-out" >> "$GITHUB_ENV"
+
+      - uses: actions/download-artifact@v7 # v7.0.0
+        with:
+          name: zip-${{ matrix.game }}
+          path: ${{ runner.temp }}/sp-out/zip
+
+      - uses: docker/login-action@v4 # v4.8.0
+        if: matrix.platform == 'linux'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run tests on srcds:${{ matrix.game }} (${{ matrix.platform }})
+        env:
+          SRCDS_IMAGE: ghcr.io/${{ github.repository_owner }}/srcds
+          CRASH_DUMPS: 1
+        run: |
+          set -o pipefail
+          zip=$(ls "$OUT"/zip/*.zip)
+          if [ "$PLATFORM" = windows ]; then
+            docker/harness/run-windows.sh "$GAME" "$zip" "$OUT/harness" | tee "$OUT/report.txt"
+          else
+            docker/harness/run.sh "$GAME" "$zip" "$OUT/harness" | tee "$OUT/report.txt"
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### $GAME, $PLATFORM"
+            echo '```text'
+            sed -n '/^gamedata vtables/,$p' "$OUT/report.txt" 2>/dev/null || echo "no test report"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v7 # v7.0.2
+        with:
+          name: test-${{ matrix.game }}-${{ matrix.platform }}
+          if-no-files-found: ignore
+          path: |
+            ${{ runner.temp }}/sp-out/report.txt
+            ${{ runner.temp }}/sp-out/harness/results.json
+            ${{ runner.temp }}/sp-out/harness/console.log
+            ${{ runner.temp }}/sp-out/harness/srcds_run.log
+            ${{ runner.temp }}/sp-out/harness/srcds.exitcode
+            ${{ runner.temp }}/sp-out/harness/crash.txt
+            ${{ runner.temp }}/sp-out/harness/dumps/
+            ${{ runner.temp }}/sp-out/harness/gamedata-vtables.txt
+            ${{ runner.temp }}/sp-out/harness/source-python-logs/
+
+  publish:
+    needs: [meta, package, test]
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7 # v7.0.1
+        with:
+          ref: ${{ needs.meta.outputs.sha }}
+
+      - uses: actions/download-artifact@v7 # v7.0.0
+        with:
+          pattern: zip-*
+          path: dist
+          merge-multiple: true
+
+      - name: Upload the zips and checksums
+        run: |
+          # the release must still be the pre-release this run was started for
+          docker/release/check-release.sh "$TAG" false > /dev/null
+          cd dist
+          sha256sum -- *.zip > SHA256SUMS
+          cat SHA256SUMS
+          gh release upload "$TAG" --clobber -- *.zip SHA256SUMS
+
+      - name: Make it a full release
+        if: needs.meta.outputs.promote == 'true'
+        run: |
+          docker/release/check-release.sh "$TAG" true > /dev/null
+          gh release edit "$TAG" --prerelease=false --latest
+          echo "$TAG is now the latest release." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Summary
+        run: |
+          {
+            echo "### $TAG"
+            echo '```text'
+            cat dist/SHA256SUMS
+            echo '```'
+            [ "${{ needs.meta.outputs.promote }}" = true ] || echo "Left as a pre-release (run promote.yml to make it a full release)."
+          } >> "$GITHUB_STEP_SUMMARY"
