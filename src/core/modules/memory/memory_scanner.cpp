@@ -31,6 +31,7 @@
 #ifdef _WIN32
 	#include <windows.h>
 #else
+	#include <dlfcn.h>
 	#include <fcntl.h>
 	#include <link.h>
 	#include <sys/mman.h>
@@ -467,6 +468,19 @@ dict CBinaryFile::GetSymbols()
 //-----------------------------------------------------------------------------
 // CBinaryManager class
 //-----------------------------------------------------------------------------
+// Whether a library is loaded already (by the engine, typically), without loading it.
+static bool IsLibraryLoaded(const char* szPath)
+{
+#ifdef _WIN32
+	return GetModuleHandleA(szPath) != NULL;
+#else
+	void* handle = dlopen(szPath, RTLD_NOW | RTLD_NOLOAD);
+	if (handle)
+		dlclose(handle);	// RTLD_NOLOAD still counts a reference
+	return handle != NULL;
+#endif
+}
+
 // Small helper function
 bool str_ends_with(const char *szString, const char *szSuffix)
 {
@@ -494,6 +508,7 @@ CBinaryFile* CBinaryManager::FindBinary(char* szPath, bool bSrvCheck /* = true *
 		szBinaryPath += ".dll";
 #endif
 
+	bool bWasLoaded = IsLibraryLoaded(szBinaryPath.data());
 	unsigned long ulModule = (unsigned long) dlLoadLibrary(szBinaryPath.data());
 	unsigned long ulBase = 0;
 #ifdef __linux__
@@ -505,6 +520,7 @@ CBinaryFile* CBinaryManager::FindBinary(char* szPath, bool bSrvCheck /* = true *
 		// If the previous path failed, try the "bin" folder of the game.
 		// This will allow passing e.g. "server" to this function.
 		szBinaryPath = std::string(szGameDir) + "/bin/" + szBinaryPath;
+		bWasLoaded = IsLibraryLoaded(szBinaryPath.data());
 		ulModule = (unsigned long) dlLoadLibrary(szBinaryPath.data());
 	}
 #endif
@@ -515,6 +531,14 @@ CBinaryFile* CBinaryManager::FindBinary(char* szPath, bool bSrvCheck /* = true *
 		BOOST_RAISE_EXCEPTION(PyExc_IOError, szBinaryPath.data())
 	}
 
+	// A library that was loaded already (server, engine, ...) is only looked at, not kept loaded:
+	// holding a reference to it would keep it loaded after its owner unloads it, so that it is
+	// only unloaded at process exit, after the libraries it uses (Windows: server.dll's exit code
+	// then crashes in the already unloaded vphysics.dll/tier0.dll, CS:GO and L4D2). A library
+	// that only Source.Python loaded keeps its reference.
+	if (bWasLoaded)
+		dlFreeLibrary((DLLib *) ulModule);
+
 	// Search for an existing BinaryFile object
 	for (std::list<CBinaryFile *>::iterator iter=m_Binaries.begin(); iter != m_Binaries.end(); ++iter)
 	{
@@ -522,7 +546,8 @@ CBinaryFile* CBinaryManager::FindBinary(char* szPath, bool bSrvCheck /* = true *
 		if (binary->m_ulModule == ulModule)
 		{
 			// We don't need to open it several times
-			dlFreeLibrary((DLLib *) ulModule);
+			if (!bWasLoaded)
+				dlFreeLibrary((DLLib *) ulModule);
 			return binary;
 		}
 	}
