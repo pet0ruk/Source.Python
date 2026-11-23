@@ -453,24 +453,12 @@ def _platform_value(data, key, default=None):
     return data.get(f'{key}_{PLATFORM}', data.get(key, default))
 
 
-#: Gamedata functions known not to resolve, per (game, platform): reported, not failed. One that
-#: starts resolving fails the check, so the entry gets removed.
-KNOWN_UNRESOLVED = {
-    ('csgo', 'windows'): {
-        'CSmokeGrenadeProjectile.detonate':
-            'the Windows signature predates the final CS:GO build (Oct 2023) and matches '
-            'nothing; the function needs re-deriving from server.dll',
-    },
-}
-
-
 def check_gamedata_functions():
     """Every [function] identifier in the effective gamedata for this platform resolves in its
     binary: symbols, and byte signatures ('2A' is a wildcard byte) such as Windows uses."""
     import binascii
     from memory import find_binary
     found, missing, binaries = {'symbols': 0, 'signatures': 0}, [], {}
-    known, now_resolving = KNOWN_UNRESOLVED.get((GAME_NAME, PLATFORM), {}), []
     for cls, data in _effective_entity_gamedata().items():
         binary_name = _platform_value(data, 'binary', 'server')
         srv_check = str(_platform_value(data, 'srv_check', 'True')).lower() != 'false'
@@ -487,17 +475,10 @@ def check_gamedata_functions():
                               else ident]
                 found[kind] += 1
             except Exception:
-                missing.append(f'{cls}.{name}')
-                continue
-            if f'{cls}.{name}' in known:
-                now_resolving.append(f'{cls}.{name}')
+                missing.append(f'{cls}.{name} ({ident[:40]})')
     if not any(found.values()) and not missing:
         raise Skip(f'no [function] identifiers for {PLATFORM} in this game\'s gamedata')
-    unexpected = [name for name in missing if name not in known]
-    expect(not unexpected, f'{len(unexpected)} unresolved: {unexpected[:10]}')
-    expect(not now_resolving, f'resolves now, remove from KNOWN_UNRESOLVED: {now_resolving}')
-    if missing:
-        found['known_unresolved'] = {name: known[name] for name in missing}
+    expect(not missing, f'{len(missing)} unresolved: {missing[:10]}')
     return found
 
 
@@ -699,6 +680,8 @@ def phase_players():
         check('players.take_damage', lambda: check_take_damage(player))
         check('messages.send', lambda: check_messages(player))
         check('menus.send', lambda: check_menus(player))
+        if SOURCE_ENGINE == 'csgo':
+            check('entities.smoke_grenade_detonate', lambda: start_smoke_detonate(player))
         # the engine runs it as if the bot had typed it; checked in finish()
         player.client_command('sp_harness_client 42 text', server_side=True)
         PLAYER_FOR_CLIENT_COMMAND.append(player.index)
@@ -830,9 +813,42 @@ def finish():
     if PLAYER_FOR_CLIENT_COMMAND:
         check('commands.client_command', check_client_command)
     check('events.custom_event', check_custom_events)
+    if SMOKE_EXPECTED:
+        check('entities.smoke_grenade_detonate_event', check_smoke_detonate)
     RESULTS['finished'] = True
     save()
     queue_command_string('quit')
+
+
+#: smokegrenade_detonate events: (entityid, userid); and the projectile/thrower it expects.
+SMOKE_EVENTS = []
+SMOKE_EXPECTED = []
+
+
+def _on_smoke_detonate(game_event):
+    SMOKE_EVENTS.append((game_event['entityid'], game_event['userid']))
+
+
+def start_smoke_detonate(player):
+    """Call a [function] gamedata entry found by byte signature (CSmokeGrenadeProjectile
+    .detonate, i.e. SmokeDetonate) on a smoke grenade projectile thrown by a bot; the game then
+    fires smokegrenade_detonate for it (checked in finish()), which shows the signature found
+    that function and the call worked, not only that the bytes were found."""
+    from events.manager import event_manager
+    event_manager.register_for_event('smokegrenade_detonate', _on_smoke_detonate)
+    grenade = Entity.create('smokegrenade_projectile')
+    grenade.origin = player.origin + Vector(0, 0, 16)
+    grenade.thrower = player.inthandle
+    grenade.owner_handle = player.inthandle
+    grenade.spawn()
+    SMOKE_EXPECTED.append((grenade.index, player.userid))
+    grenade.detonate()
+    return SMOKE_EXPECTED[0]
+
+
+def check_smoke_detonate():
+    expect(SMOKE_EXPECTED[0] in SMOKE_EVENTS, (SMOKE_EXPECTED, SMOKE_EVENTS))
+    return SMOKE_EVENTS
 
 
 def check_console_convar_changes():
