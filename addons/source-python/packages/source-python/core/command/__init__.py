@@ -23,7 +23,9 @@ from core import create_checksum
 from core import SOURCE_ENGINE_BRANCH
 from core.logger import core_logger
 from core.update import do_full_update
-from core.version import get_last_successful_build_number
+from core.update import get_releases
+from core.update import select_newer_major
+from core.update import select_update
 from core.version import is_unversioned
 from core.version import VERSION
 from core.version import GIT_COMMIT
@@ -164,17 +166,39 @@ def print_info(info):
 
 
 @core_command.server_sub_command(['update'])
-def update_sp(info):
-    """Update Source.Python to the latest version. A restart of the server is
-    required.
+def update_sp(info, major:str=''):
+    """Update Source.Python to the newest release of its major version (use
+    "sp update major" to allow a newer major version, which can break
+    plugins). A restart of the server is required.
     """
-    
-    if not is_unversioned() and VERSION >= get_last_successful_build_number():
-        core_command_logger.log_message('No new version available.')
+    if major not in ('', 'major'):
+        core_command_logger.log_message(
+            'Usage: sp update [major]')
         return
-        
-    do_full_update()
-    
+
+    try:
+        releases = get_releases(use_cache=False)
+    except (OSError, ValueError) as error:
+        core_command_logger.log_message(
+            f'Unable to get the list of releases: {error}')
+        return
+
+    release = select_update(releases, allow_major=bool(major))
+    if release is None:
+        core_command_logger.log_message('No new version available.')
+        newer_major = select_newer_major(releases)
+        if newer_major is not None:
+            core_command_logger.log_message(
+                f'Source.Python {newer_major.version} is available, a new '
+                f'major version: it can break plugins. See {newer_major.url} '
+                f'and use "sp update major" to install it.')
+        return
+
+    core_command_logger.log_message(
+        f'Updating Source.Python {VERSION} to {release.version} '
+        f'({release.url})...')
+    do_full_update(release)
+
 
 # =============================================================================
 # >> DESCRIPTION

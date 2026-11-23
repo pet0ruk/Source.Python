@@ -347,6 +347,8 @@ def phase_static():
     check('memory.vtable_pointer', check_vtable_pointer)
     check('memory.callback_bool', check_callback_bool)
     check('update.stage2', check_update_stage2)
+    check('update.version_order', check_version_order)
+    check('update.select_release', check_select_release)
 
     check('cvars.find_var', lambda: expect(
         __import__('cvars').cvar.find_var('sv_gravity') is not None, 'sv_gravity not found'))
@@ -559,6 +561,64 @@ def check_update_stage2():
         raise Skip('no update was staged (NO_UPDATE=1)')
     expect(marker.is_file(), 'the staged update was not applied')
     expect(not UPDATE_PATH.exists(), f'{UPDATE_PATH} is still there')
+
+
+def check_version_order():
+    """core.version.Version orders semantic versions, pre-releases before their release."""
+    from core.version import Version
+    order = ['0.9.9', '1.0.0-alpha', '1.0.0-alpha.1', '1.0.0-alpha.beta', '1.0.0-beta.2',
+             '1.0.0-beta.11', '1.0.0-rc.1', '1.0.0', '1.0.1', '1.2.0', '1.10.0', '2.0.0']
+    versions = [Version(text) for text in order]
+    expect(sorted(reversed(versions)) == versions, sorted(reversed(versions)))
+    expect(Version('v1.2.3') == Version('1.2.3') and str(Version('v1.2.3')) == '1.2.3', 'v prefix')
+    for bad in ('743', 'v743', '1.2', '1.2.3.4', '1.2.3+build', ''):
+        try:
+            Version(bad)
+        except ValueError:
+            continue
+        raise AssertionError(f'{bad!r} accepted')
+
+
+def check_select_release():
+    """core.update picks the newest release of the installed major version that has a zip for
+    this game, Python series and architecture, and skips drafts, pre-releases and other tags."""
+    from core.update import CHECKSUMS_ASSET, Release, get_asset_name, select_newer_major
+    from core.update import select_update
+    from core.version import Version
+
+    def release(tag, draft=False, prerelease=False, games=(SOURCE_ENGINE_BRANCH,), sums=True):
+        names = [get_asset_name(tag[1:], game) for game in games] if tag[1:2].isdigit() else []
+        names += [CHECKSUMS_ASSET] if sums else []
+        return {'tag_name': tag, 'draft': draft, 'prerelease': prerelease,
+                'html_url': f'https://example.invalid/{tag}',
+                'assets': [{'name': name, 'browser_download_url': f'https://example.invalid/{name}'}
+                           for name in names]}
+
+    other = 'tf2' if SOURCE_ENGINE_BRANCH != 'tf2' else 'css'
+    data = [release('v2.1.0'), release('v1.5.0', draft=True), release('v1.4.0-rc.1'),
+            release('v1.4.0', prerelease=True), release('v1.3.0', games=(other,)),
+            release('v1.2.1', sums=False), release('v1.2.0'), release('v1.1.0'), release('v743'),
+            release('nightly')]
+    releases = sorted(filter(None, map(Release.from_json, data)), key=lambda r: r.version,
+                      reverse=True)
+    expect([r.tag for r in releases] == ['v2.1.0', 'v1.3.0', 'v1.2.1', 'v1.2.0', 'v1.1.0'],
+           releases)
+
+    def pick(current, allow_major=False):
+        chosen = select_update(releases, current, allow_major)
+        return None if chosen is None else chosen.tag
+
+    cases = {('1.1.0', False): 'v1.2.0', ('1.2.0', False): None, ('1.2.0', True): 'v2.1.0',
+             ('1.2.0-rc.1', False): 'v1.2.0', ('2.1.0', True): None, (None, False): 'v2.1.0'}
+    got = {key: pick(*key) for key in cases}
+    expect(got == cases, got)
+    newer = select_newer_major(releases, '1.2.0')
+    expect(newer is not None and newer.version == Version('2.1.0'), newer)
+    expect(select_newer_major(releases, '2.1.0') is None, 'newer major than 2.1.0')
+    expect(get_asset_name(Version('1.2.3'), 'css', '3.13', 'x86') ==
+           'source-python-css-1.2.3-py3.13.zip', 'asset name')
+    expect(get_asset_name(Version('1.2.3'), 'tf2', '3.15', 'x64') ==
+           'source-python-tf2-1.2.3-py3.15-x64.zip', 'x64 asset name')
 
 
 def check_convar():

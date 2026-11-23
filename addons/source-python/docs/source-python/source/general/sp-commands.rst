@@ -498,10 +498,25 @@ Unload a plugin by name.
 update
 ------
 
-Update Source.Python to the latest version. A restart of the server is required
-to apply the new update.
+Update Source.Python to the newest release of its major version, for this game,
+Python series and architecture. The download is checked against the release's
+checksums. A restart of the server is required to apply the new update.
+
+A new major version can break plugins, so ``sp update`` doesn't install one;
+it tells you if one is available. Read its release notes, then use
+``sp update major`` to install it.
+
+Only Source.Python's own files are replaced (its packages, the bundled
+site-packages and Python, its data and docs, and the binaries). Plugins,
+custom packages and settings are kept.
 
 .. code-block:: none
 
     // Usage
-    // sp update
+    // sp update [major]
+
+    // Update within the installed major version
+    sp update
+
+    // Update to the newest release, even of a new major version
+    sp update major

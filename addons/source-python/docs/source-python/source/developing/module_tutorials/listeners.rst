@@ -655,8 +655,10 @@ Called once per server frame.
 OnVersionUpdate
 ---------------
 
-Called when a new Source.Python version is available. Version updates are
-checked once per map.
+Called when a new Source.Python version is available: a newer release of the
+installed major version (the one ``sp update`` would install). Releases are
+checked on map changes, at most once an hour. Both versions are semantic
+version strings (e.g. ``'1.2.3'``).
 
 .. code-block:: python
 
