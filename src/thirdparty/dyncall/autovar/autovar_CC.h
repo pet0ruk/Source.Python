@@ -6,8 +6,8 @@
  Description: 
  License:
 
-   Copyright (c) 2011 Daniel Adler <dadler@uni-goettingen.de>,
-                      Tassilo Philipp <tphilipp@potion-studios.com>
+   Copyright (c) 2011-2018 Daniel Adler <dadler@uni-goettingen.de>,
+                           Tassilo Philipp <tphilipp@potion-studios.com>
 
    Permission to use, copy, modify, and distribute this software for any
    purpose with or without fee is hereby granted, provided that the above
@@ -22,6 +22,7 @@
    OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 */
+
 #ifndef AUTOVAR_CC_H
 #define AUTOVAR_CC_H
 
@@ -32,6 +33,8 @@
 #define CC_INTEL
 #elif defined(_MSC_VER)
 #define CC_MSVC
+#elif defined(__clang__) || defined(__llvm__)
+#define CC_CLANG
 #elif defined(__GNUC__)
 #define CC_GNU
 #elif defined(__WATCOMC__)

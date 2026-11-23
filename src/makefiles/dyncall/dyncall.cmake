@@ -1,6 +1,6 @@
 # ------------------------------------------------------------------
 # File: src/makefiles/dyncall/dyncall.cmake
-# Purpose: Builds dyncall_s and dynload_s from the dyncall 0.7 source
+# Purpose: Builds dyncall_s and dynload_s from the dyncall 1.4 source
 #    in thirdparty/dyncall (see its README.md), with the same
 #    compiler and runtime settings as core and the loader.
 #
@@ -21,7 +21,7 @@ EndIf()
 Add_Library(dyncall_s STATIC
     ${DYNCALL_KERNEL}
     ${DYNCALL_SRC}/dyncall/dyncall_vector.c
-    ${DYNCALL_SRC}/dyncall/dyncall_struct.c
+    ${DYNCALL_SRC}/dyncall/dyncall_aggregate.c
     ${DYNCALL_SRC}/dyncall/dyncall_api.c
     ${DYNCALL_SRC}/dyncall/dyncall_callvm.c
     ${DYNCALL_SRC}/dyncall/dyncall_callvm_base.c

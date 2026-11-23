@@ -488,6 +488,10 @@ CBinaryFile* CBinaryManager::FindBinary(char* szPath, bool bSrvCheck /* = true *
 		else if (!str_ends_with(szBinaryPath.data(), ".so"))
 			szBinaryPath += ".so";
 	}
+#elif defined(_WIN32)
+	// dynload doesn't let LoadLibrary add ".dll" to a name without one (since dyncall 1.1).
+	if (bCheckExtension && !str_ends_with(szBinaryPath.data(), ".dll"))
+		szBinaryPath += ".dll";
 #endif
 
 	unsigned long ulModule = (unsigned long) dlLoadLibrary(szBinaryPath.data());
@@ -508,10 +512,6 @@ CBinaryFile* CBinaryManager::FindBinary(char* szPath, bool bSrvCheck /* = true *
 	if (!ulModule)
 	{
 		szBinaryPath = "Unable to find " + szBinaryPath;
-		#ifdef _WIN32
-			if (bCheckExtension && !str_ends_with(szBinaryPath.data(), ".dll"))
-				szBinaryPath += ".dll";
-		#endif
 		BOOST_RAISE_EXCEPTION(PyExc_IOError, szBinaryPath.data())
 	}
 

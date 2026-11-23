@@ -2,12 +2,12 @@
 
  Package: dyncall
  Library: dyncall
- File: dyncall/dyncall_call_mips.h
- Description: mips call-kernel C interfaces.
+ File: dyncall/dyncall_callvm_ppc64.h
+ Description: 
  License:
 
-   Copyright (c) 2007-2011 Daniel Adler <dadler@uni-goettingen.de>, 
-                           Tassilo Philipp <tphilipp@potion-studios.com>
+   Copyright (c) 2014-2015 Masanori Mitsugi <mitsugi@linux.vnet.ibm.com>
+                      2020 Tassilo Philipp <tphilipp@potion-studios.com>
 
    Permission to use, copy, modify, and distribute this software for any
    purpose with or without fee is hereby granted, provided that the above
@@ -24,27 +24,41 @@
 */
 
 
+#ifndef DYNCALL_CALLVM_PPC64_H
+#define DYNCALL_CALLVM_PPC64_H
+
 /*
 
-  dyncall MIPS call kernel C interface for all ABIs
+  dyncall callvm for 64bit ppc architectures
+
+  SUPPORTED CALLING CONVENTIONS
+  standard and ... (ellipsis) calls
 
   REVISION
-  2010/06/03 initial
+  2014/08/07 initial
 
 */
 
 
-#ifndef DYNCALL_CALL_MIPS_H
-#define DYNCALL_CALL_MIPS_H
+#include "dyncall_callvm.h"
+#include "dyncall_vector.h"
 
-/* supported abi-specific call kernels: */
 
-#include "dyncall_call_mips_o32.h"
-#include "dyncall_call_mips_eabi.h"
-#include "dyncall_call_mips_n64.h"
-#include "dyncall_call_mips_n32.h"
+typedef struct
+{
+  DClonglong mIntData[8];
+  DCdouble   mFloatData[13];
+} DCRegData_ppc64;
 
-typedef void (*dcCall_mips_common) (DCpointer target, DCpointer regdata_abispecific, DCsize stacksize, DCpointer stackdata);
+typedef struct
+{
+  DCCallVM        mInterface;
+  int             mIntRegs;
+  int             mFloatRegs;
+  DCRegData_ppc64 mRegData;
+  DCVecHead       mVecHead;
+} DCCallVM_ppc64;
 
-#endif /* DYNCALL_CALL_MIPS_H */
+
+#endif /* DYNCALL_CALLVM_PPC64_H */
 

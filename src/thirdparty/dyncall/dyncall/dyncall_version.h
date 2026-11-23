@@ -2,11 +2,11 @@
 
  Package: dyncall
  Library: dyncall
- File: dyncall/dyncall_call_sparc.h
- Description: 
+ File: dyncall/dyncall_utils.h
+ Description: Type and calling-convention signature character defines
  License:
 
-   Copyright (c) 2011 Daniel Adler <dadler@uni-goettingen.de>
+   Copyright (c) 2021-2022 Tassilo Philipp <tphilipp@potion-studios.com>
 
    Permission to use, copy, modify, and distribute this software for any
    purpose with or without fee is hereby granted, provided that the above
@@ -23,20 +23,22 @@
 */
 
 
-#ifndef DYNCALL_CALL_SPARC_H
-#define DYNCALL_CALL_SPARC_H
 
-#include "dyncall_types.h"
+#ifndef DYNCALL_VERSION_H
+#define DYNCALL_VERSION_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+/* version scheme is using hex number, with last nibble being either 'c'
+   or 'f' for current or release version, respectively; next nibbles are
+   only using decimal numbers (0-9), one for teeny (usually 0 as not used),
+   one for minor and rest for major version number; e.g.:
 
-void dcCall_sparc (DCpointer target, DCsize size, DCpointer data);
+   0x120c = v1.2-current
+   0x40f = v0.4-release
 
-#ifdef __cplusplus
-}
-#endif
+   this macro was introduced while working on v1.3, (so 0x130c)
+*/
 
-#endif /* DYNCALL_CALL_SPARC_H */
+#define DYNCALL_VERSION  0x140f
+
+#endif /* DYNCALL_VERSION_H */
 
