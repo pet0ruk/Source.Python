@@ -64,9 +64,10 @@ elif not results.get('finished'):
     print('\nFAIL: run did not finish (timeout?)')
     failed = True
 elif (out / 'crash.txt').exists():
-    # every check ran; the server crashed while shutting down (not counted as a failure yet)
-    print('\nWARNING: the server crashed after the checks had finished (shutting down)')
+    # every check ran, then the server crashed while shutting down
+    print('\nFAIL: the server crashed after the checks had finished (shutting down)')
     print_crash()
+    failed = True
 failed |= counts['fail'] > 0
 print(f"\n{counts['pass']} passed, {counts['fail']} failed, {counts['skip']} skipped, "
       f"{counts['xfail']} known issues, {counts['xpass']} known issues now passing"
