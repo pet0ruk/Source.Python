@@ -1,11 +1,12 @@
 # ../core/update.py
 
-"""Provides functions to update Source.Python and its data files."""
+"""Provides functions to update Source.Python from its GitHub releases."""
 
 # =============================================================================
 # >> IMPORTS
 # =============================================================================
 # Python Imports
+import hashlib
 import json
 import time
 
@@ -17,14 +18,14 @@ from urllib.request import urlopen
 from core import PLATFORM
 from core import SOURCE_ENGINE_BRANCH
 from core.logger import core_logger
+from core.version import ARCHITECTURE
+from core.version import PYTHON_SERIES
+from core.version import VERSION
+from core.version import Version
 #   Paths
 from paths import ADDONS_PATH
 from paths import GAME_PATH
 from paths import UPDATE_PATH
-from paths import UPDATE_DATA_PATH
-from paths import UPDATE_SP_DATA_PATH
-from paths import DATA_PATH
-from paths import SP_DATA_PATH
 #   KeyValues
 from keyvalues import KeyValues
 
@@ -33,18 +34,16 @@ from keyvalues import KeyValues
 # >> ALL DECLARATION
 # =============================================================================
 __all__ = (
-    'ARTIFACTS_URL',
-    'BASE_DOWNLOAD_URL',
-    'CHECKSUM_URL',
-    'DATA_URL',
-    'DATA_ZIP_FILE',
+    'CHECKSUMS_ASSET',
+    'RELEASES_URL',
+    'Release',
+    'do_full_update',
     'download_file',
-    'get_build_artifacts',
-    'get_download_url',
-    'get_latest_data_checksum',
-    'is_new_data_available',
+    'get_asset_name',
+    'get_releases',
+    'select_newer_major',
+    'select_update',
     'update_in_progress',
-    'update_data',
 )
 
 
@@ -59,31 +58,88 @@ BINARY_EXT = 'so' if PLATFORM == 'linux' else 'dll'
 SP_VDF1 = 'addons/source-python'
 SP_VDF2 = 'addons/source-python2'
 
-DATA_ZIP_FILE = DATA_PATH / 'source-python-data.zip'
 UPDATE_ZIP_FILE = UPDATE_PATH / 'source-python.zip'
 VDF_FILE = ADDONS_PATH / 'source-python.vdf'
 LOADER_FILE = ADDONS_PATH / f'source-python.{BINARY_EXT}'
 LOADER_UPDATE_FILE = UPDATE_PATH / 'addons' / f'source-python.{BINARY_EXT}'
 VDF_UPDATE_FILE = UPDATE_PATH / 'addons' / 'source-python.vdf'
 
-BASE_DATA_URL = 'http://data.sourcepython.com'
-CHECKSUM_URL = f'{BASE_DATA_URL}/checksum.txt'
-DATA_URL = f'{BASE_DATA_URL}/source-python-data.zip'
+#: The GitHub releases of Source.Python (newest first).
+RELEASES_URL = (
+    'https://api.github.com/repos/pet0ruk/Source.Python/releases?per_page=100')
 
-BASE_DOWNLOAD_URL = 'http://downloads.sourcepython.com'
+#: The release asset with the sha256 of each of the release's zips.
+CHECKSUMS_ASSET = 'SHA256SUMS'
 
-LATEST_RELEASE_URL = "https://api.github.com/repos/Source-Python-Dev-Team/Source.Python/releases/latest"
+#: Seconds a fetched list of releases is reused (GitHub allows 60 requests
+#: an hour from an IP address without authentication).
+RELEASES_CACHE_TIME = 3600
 
 DEFAULT_TIMEOUT = 3
+DOWNLOAD_TIMEOUT = 30
 
 #: Indicates, whether an update is in progress (stage 1 has been applied).
 update_in_progress = False
+
+_releases_cache = None
+
+
+# =============================================================================
+# >> CLASSES
+# =============================================================================
+class Release(object):
+    """A published Source.Python release."""
+
+    def __init__(self, version, tag, url, assets):
+        """Store the release's data.
+
+        :param Version version:
+            The release's version.
+        :param str tag:
+            The release's tag (e.g. ``'v1.2.3'``).
+        :param str url:
+            The release's page.
+        :param dict assets:
+            Download URL of each asset, by file name.
+        """
+        self.version = version
+        self.tag = tag
+        self.url = url
+        self.assets = assets
+
+    def __repr__(self):
+        return f'{type(self).__name__}({self.tag!r})'
+
+    @classmethod
+    def from_json(cls, data):
+        """Return a release from GitHub's JSON for it, or ``None`` for a
+        draft, a pre-release or a tag that isn't a version.
+
+        :param dict data:
+            A release, as returned by GitHub's releases API.
+        :rtype: Release
+        """
+        if data.get('draft') or data.get('prerelease'):
+            return None
+
+        try:
+            version = Version(data['tag_name'])
+        except ValueError:
+            return None
+
+        if version.prerelease is not None:
+            return None
+
+        assets = {
+            asset['name']: asset['browser_download_url']
+            for asset in data.get('assets', ())}
+        return cls(version, data['tag_name'], data.get('html_url'), assets)
 
 
 # =============================================================================
 # >> FUNCTIONS
 # =============================================================================
-def download_file(url_path, file_path, timeout=3):
+def download_file(url_path, file_path, timeout=DOWNLOAD_TIMEOUT):
     """Download a file from an URL to a specific file.
 
     :param str url_path:
@@ -107,17 +163,130 @@ def download_file(url_path, file_path, timeout=3):
             time.time()-now))
 
 
+def get_asset_name(version, game=SOURCE_ENGINE_BRANCH,
+        python_series=PYTHON_SERIES, architecture=ARCHITECTURE):
+    """Return the name of a release's zip for a game.
+
+    :param Version version:
+        The release's version.
+    :param str game:
+        The build branch (e.g. ``'css'``).
+    :param str python_series:
+        The Python series (e.g. ``'3.13'``).
+    :param str architecture:
+        ``'x86'`` or ``'x64'``.
+    :rtype: str
+    """
+    suffix = '-x64' if architecture == 'x64' else ''
+    return f'source-python-{game}-{version}-py{python_series}{suffix}.zip'
+
+
+def get_releases(timeout=DEFAULT_TIMEOUT, use_cache=True):
+    """Return Source.Python's published releases, newest first.
+
+    Drafts, pre-releases and tags that aren't versions are left out.
+
+    :param float timeout:
+        Number of seconds that need to pass until a timeout occurs.
+    :param bool use_cache:
+        Whether a list fetched in the last :data:`RELEASES_CACHE_TIME` seconds
+        may be returned.
+    :rtype: list
+    """
+    global _releases_cache
+    if (use_cache and _releases_cache is not None and
+            time.time() - _releases_cache[0] < RELEASES_CACHE_TIME):
+        return list(_releases_cache[1])
+
+    update_logger.log_debug('Getting releases...')
+    with urlopen(RELEASES_URL, timeout=timeout) as url:
+        data = json.load(url)
+
+    releases = sorted(
+        filter(None, map(Release.from_json, data)),
+        key=lambda release: release.version, reverse=True)
+    _releases_cache = (time.time(), releases)
+    return list(releases)
+
+
+def _installable(releases, game):
+    for release in releases:
+        if (get_asset_name(release.version, game) in release.assets and
+                CHECKSUMS_ASSET in release.assets):
+            yield release
+
+
+def select_update(releases, current=VERSION, allow_major=False,
+        game=SOURCE_ENGINE_BRANCH):
+    """Return the newest release to update to, or ``None``.
+
+    Only releases with a zip for this game, Python series and architecture
+    are considered. Unless ``allow_major`` is set, the release must have the
+    installed major version: a new major version can break plugins. An
+    installation without a version gets the newest release.
+
+    :param list releases:
+        The releases (see :func:`get_releases`).
+    :param str current:
+        The installed version, or ``None``.
+    :param bool allow_major:
+        Whether a newer major version may be returned.
+    :param str game:
+        The build branch.
+    :rtype: Release
+    """
+    current = None if current is None else Version(current)
+    for release in _installable(releases, game):
+        if current is None:
+            return release
+
+        if release.version <= current:
+            continue
+
+        if allow_major or release.version.major == current.major:
+            return release
+
+    return None
+
+
+def select_newer_major(releases, current=VERSION, game=SOURCE_ENGINE_BRANCH):
+    """Return the newest release of a newer major version, or ``None``.
+
+    :param list releases:
+        The releases (see :func:`get_releases`).
+    :param str current:
+        The installed version, or ``None`` (then ``None`` is returned).
+    :param str game:
+        The build branch.
+    :rtype: Release
+    """
+    if current is None:
+        return None
+
+    current = Version(current)
+    for release in _installable(releases, game):
+        if release.version.major > current.major:
+            return release
+
+    return None
+
+
 # =============================================================================
 # >> FULL SP UPDATE
 # =============================================================================
-def do_full_update(timeout=DEFAULT_TIMEOUT):
-    """Starts a full update of Source.Python.
+def do_full_update(release, timeout=DOWNLOAD_TIMEOUT):
+    """Starts a full update of Source.Python to a release.
 
     A restart of the server and possibly manual work is required. Please see
     the Source.Python log for the instructions.
 
+    :param Release release:
+        The release to install (see :func:`select_update`).
     :param float timeout:
         Number of seconds that need to pass until a timeout occurs.
+    :raise ValueError:
+        Raised if the release has no zip for this installation or the
+        download doesn't match its checksum.
     """
     global update_in_progress
     if update_in_progress:
@@ -129,7 +298,7 @@ def do_full_update(timeout=DEFAULT_TIMEOUT):
     # Make sure there is a clean update directory
     _clean_update_dir()
     try:
-        _download_latest_version(timeout)
+        _download_release(release, timeout)
         _apply_update_stage1()
         update_in_progress = True
     except:
@@ -138,34 +307,6 @@ def do_full_update(timeout=DEFAULT_TIMEOUT):
         _clean_update_dir()
         raise
 
-def get_build_artifacts(timeout=DEFAULT_TIMEOUT):
-    """Return the artifacts of the latest Source.Python build.
-
-    :param float timeout:
-        Number of seconds that need to pass until a timeout occurs.
-    """
-    update_logger.log_debug('Getting artifacts...')
-    with urlopen(LATEST_RELEASE_URL, timeout=timeout) as url:
-        data = json.load(url)
-
-    return [asset['browser_download_url'] for asset in data.get('assets', [])]
-
-def get_download_url(game=SOURCE_ENGINE_BRANCH, timeout=DEFAULT_TIMEOUT):
-    """Get the latest Source.Python download URL for a specific game.
-
-    :param str game:
-        The game game to look for (e.g. ``css``).
-    :param float timeout:
-        Number of seconds that need to pass until a timeout occurs.
-    :rtype: str
-    :raise ValueError:
-        Raised if the game wasn't found.
-    """
-    for download_url in get_build_artifacts(timeout):
-        if f'-{game}-' in download_url:
-            return download_url
-
-    raise ValueError(f'Unable to find a download URL for game "{game}".')
 
 def _clean_update_dir():
     """Clear or create the update directory."""
@@ -178,13 +319,35 @@ def _clean_update_dir():
     else:
         UPDATE_PATH.mkdir()
 
-def _download_latest_version(timeout=DEFAULT_TIMEOUT):
-    """Download the latest Source.Python version.
 
-    :param float timeout:
-        Number of seconds that need to pass until a timeout occurs.
-        """
-    download_file(get_download_url(), UPDATE_ZIP_FILE, timeout)
+def _download_release(release, timeout=DOWNLOAD_TIMEOUT):
+    """Download a release's zip for this installation and verify it against
+    the release's checksums.
+    """
+    name = get_asset_name(release.version)
+    if name not in release.assets or CHECKSUMS_ASSET not in release.assets:
+        raise ValueError(f'{release.tag} has no {name} (or no checksums).')
+
+    update_logger.log_message(f'Downloading Source.Python {release.version}...')
+    with urlopen(release.assets[CHECKSUMS_ASSET], timeout=timeout) as url:
+        checksums = url.read().decode()
+
+    expected = None
+    for line in checksums.splitlines():
+        parts = line.split()
+        if len(parts) == 2 and parts[1].lstrip('*') == name:
+            expected = parts[0].lower()
+
+    if expected is None:
+        raise ValueError(f'{CHECKSUMS_ASSET} of {release.tag} has no {name}.')
+
+    download_file(release.assets[name], UPDATE_ZIP_FILE, timeout)
+    actual = hashlib.sha256(UPDATE_ZIP_FILE.read_bytes()).hexdigest()
+    if actual != expected:
+        raise ValueError(
+            f'{name} does not match its checksum (sha256 {actual}, expected '
+            f'{expected}).')
+
 
 def _apply_update_stage1():
     """Apply stage 1 of the version update."""
@@ -202,17 +365,6 @@ def _apply_update_stage1():
     else:
         _apply_update_stage1_linux()
 
-    # Apply latest data update
-    if not DATA_ZIP_FILE.is_file():
-        return
-
-    update_logger.log_debug('Applying latest data update...')
-
-    if UPDATE_SP_DATA_PATH.is_dir():
-        update_logger.log_debug(f'Removing {UPDATE_SP_DATA_PATH} ...')
-        UPDATE_SP_DATA_PATH.rmtree()
-
-    _unpack_data(UPDATE_DATA_PATH)
 
 def _apply_update_stage1_windows():
     """Apply the Windows specific part of stage 1.
@@ -222,6 +374,7 @@ def _apply_update_stage1_windows():
     does, the new ``source-python.dll`` is copied to the addons directory with
     a new name (``source-python2.dll``). After that the VDF entry is modified
     to point to the new loader.
+
     If ``source-python.vdf`` does not exist, manual action is required.
     """
     if not VDF_FILE.is_file():
@@ -254,69 +407,10 @@ def _apply_update_stage1_windows():
         update_logger.log_message(
             'Stage 1 has been applied. Restart your server to apply stage 2.')
 
+
 def _apply_update_stage1_linux():
     """Apply the Linux specific part of stage 1."""
     update_logger.log_debug('Moving new loader binary to game directory...')
     LOADER_UPDATE_FILE.move(LOADER_FILE)
-
     update_logger.log_message(
         'Stage 1 has been applied. Restart your server to apply stage 2.')
-
-
-# =============================================================================
-# >> SP DATA UPDATE
-# =============================================================================
-def update_data(timeout=DEFAULT_TIMEOUT):
-    """Download and unpack the latest data from the build server.
-
-    Old data gets deleted before unpacking.
-
-    :param float timeout:
-        Number of seconds that need to pass until a timeout occurs.
-    """
-    _download_latest_data(timeout)
-    if SP_DATA_PATH.is_dir():
-        update_logger.log_debug('Removing {} ...'.format(SP_DATA_PATH))
-        SP_DATA_PATH.rmtree()
-
-    _unpack_data(DATA_PATH)
-
-def is_new_data_available(timeout=DEFAULT_TIMEOUT):
-    """Return ``True`` if new data is available.
-
-    :param float timeout:
-        Number of seconds that need to pass until a timeout occurs.
-    :rtype: bool
-    """
-    if not DATA_ZIP_FILE.is_file():
-        return True
-
-    return DATA_ZIP_FILE.read_hexhash('md5') != get_latest_data_checksum(timeout)
-
-def get_latest_data_checksum(timeout=DEFAULT_TIMEOUT):
-    """Return the MD5 checksum of the latest data from the build server.
-
-    :param float timeout:
-        Number of seconds that need to pass until a timeout occurs.
-    :rtype: str
-    """
-    with urlopen(CHECKSUM_URL, timeout=timeout) as url:
-        return url.read().decode()
-
-def _download_latest_data(timeout=DEFAULT_TIMEOUT):
-    """Download the latest data from the build server.
-
-    :param float timeout:
-        Number of seconds that need to pass until a timeout occurs.
-    """
-    download_file(DATA_URL, DATA_ZIP_FILE, timeout)
-
-def _unpack_data(path):
-    """Unpack ``source-python-data.zip`` into the given path.
-
-    :param Path path:
-        The path the data file should be unpacked into.
-    """
-    update_logger.log_debug(f'Extracting data in {path} ...')
-    with ZipFile(DATA_ZIP_FILE) as zip:
-        zip.extractall(path)

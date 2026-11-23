@@ -82,7 +82,6 @@ def load():
     setup_core_settings()
     setup_logging()
     setup_exception_hooks()
-    #setup_data_update()
     setup_translations()
     setup_data()
     setup_global_pointers()
@@ -102,40 +101,8 @@ def unload():
 
 
 # =============================================================================
-# >> DATA UPDATE
+# >> DATA
 # =============================================================================
-def setup_data_update():
-    """Setup data update."""
-    _sp_logger.log_debug('Setting up data update...')
-
-    if LOG_FILE_OPERATIONS:
-        builtins.open = old_open
-
-    from core.settings import _core_settings
-
-    if not _core_settings.auto_data_update:
-        _sp_logger.log_debug('Automatic data updates are disable.')
-        return
-
-    _sp_logger.log_info('Checking for data updates...')
-
-    from core.update import is_new_data_available, update_data
-    from translations.manager import language_manager
-
-    try:
-        if is_new_data_available():
-            _sp_logger.log_info('New data is available. Downloading...')
-            update_data()
-
-            # languages.ini is loaded before the data has been updated. Thus,
-            # we need to reload the file.
-            language_manager.reload()
-        else:
-            _sp_logger.log_info('No new data is available.')
-    except:
-        _sp_logger.log_exception(
-            'An error occured during the data update.', exc_info=True)
-
 def setup_data():
     """Setup data."""
     _sp_logger.log_debug('Setting up data...')

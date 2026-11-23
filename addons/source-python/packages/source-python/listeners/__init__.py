@@ -6,9 +6,7 @@
 # >> IMPORTS
 # =============================================================================
 # Python Imports
-import socket
 from enum import IntEnum
-from urllib.error import URLError
 
 # Source.Python Imports
 #   Core
@@ -16,7 +14,6 @@ from core import AutoUnload
 from core import SOURCE_ENGINE
 from core import PLATFORM
 from core.settings import _core_settings
-from core.version import get_last_successful_build_number
 from core.version import is_unversioned
 from core.version import VERSION
 #   Cvars
@@ -611,20 +608,34 @@ def _on_level_init(map_name):
     if not _check_for_update.get_int():
         return
 
+    # Import this here to fix cyclic imports
+    from core.update import get_releases
+    from core.update import select_newer_major
+    from core.update import select_update
+
+    # The list of releases is fetched at most once an hour (see get_releases).
     try:
-        latest_version = get_last_successful_build_number()
-    except (URLError, socket.timeout):
+        releases = get_releases()
+    except (OSError, ValueError):
         return
 
-    if VERSION >= latest_version:
+    release = select_update(releases)
+    if release is None:
+        newer_major = select_newer_major(releases)
+        if newer_major is not None and _notify_on_update.get_int():
+            listeners_logger.log_message(
+                f'Source.Python {newer_major.version} is available, a new '
+                f'major version: it can break plugins. See {newer_major.url} '
+                f'and use "sp update major" to install it.')
         return
 
     if _notify_on_update.get_int():
         # TODO: Add translations
         listeners_logger.log_warning(
-            'A new Source.Python version is available!')
+            f'A new Source.Python version is available: {release.version} '
+            f'(installed: {VERSION}). Use "sp update" to install it.')
 
-    on_version_update_listener_manager.notify(VERSION, latest_version)
+    on_version_update_listener_manager.notify(VERSION, str(release.version))
 
 
 @OnLevelShutdown
