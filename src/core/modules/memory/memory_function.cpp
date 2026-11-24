@@ -358,7 +358,7 @@ object CFunction::SkipHooks(PyObject *args, PyObject *kw)
 
 CHook* HookFunctionHelper(void* addr, ICallingConvention* pConv)
 {
-	CHook* result;
+	CHook* result = NULL;
 	TRY_SEGV()
 		result = GetHookManager()->HookFunction(addr, pConv);
 	EXCEPT_SEGV()
@@ -403,6 +403,11 @@ void CFunction::AddHook(HookType_t eType, PyObject* pCallable)
 
 	if (!pHook) {
 		pHook = HookFunctionHelper((void *) m_ulAddr, m_pCallingConvention);
+
+		// DynamicHooks refuses functions whose first instructions it can't move (e.g. a function
+		// shorter than the hook's jump); the convention then still belongs to this function.
+		if (!pHook)
+			BOOST_RAISE_EXCEPTION(PyExc_ValueError, "Failed to hook the function at %lu.", m_ulAddr)
 
 		// Reserve a Python reference for DynamicHooks.
 		if (m_eCallingConvention == CONV_CUSTOM)
