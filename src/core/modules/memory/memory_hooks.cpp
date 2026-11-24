@@ -69,6 +69,20 @@ void SetArgument(CHook* pHook, int iIndex, object value)
 	pHook->SetArgument<T>(iIndex, val);
 }
 
+// Strings written into a hooked call point at an interned copy (see InternString): the Python
+// str may be freed before the function or its caller reads them.
+template<>
+void SetReturnValue<const char*>(CHook* pHook, object value)
+{
+	pHook->SetReturnValue<const char*>(InternString(extract<const char*>(value)));
+}
+
+template<>
+void SetArgument<const char*>(CHook* pHook, int iIndex, object value)
+{
+	pHook->SetArgument<const char*>(iIndex, InternString(extract<const char*>(value)));
+}
+
 template<class T>
 object GetArgument(CHook* pHook, int iIndex)
 {

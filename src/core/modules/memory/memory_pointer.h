@@ -139,6 +139,9 @@ public:
 	const char *        GetStringArray(int iOffset = 0);
 	void                SetStringArray(char* szText, int iOffset = 0);
 
+	// Writes a pointer to a copy of <szText> that is never freed (see InternString).
+	void                SetStringPointer(const char* szText, int iOffset = 0);
+
 	CPointer*           GetPtr(int iOffset = 0);
 	void                SetPtr(object oPtr, int iOffset = 0);
 
@@ -201,5 +204,17 @@ inline unsigned long GetPtrHelper(unsigned long addr)
 	EXCEPT_SEGV()
 	return 0;
 }
+
+//-----------------------------------------------------------------------------
+// InternString
+//-----------------------------------------------------------------------------
+/*
+Returns a copy of <szText> that stays valid until the process exits, the same one for equal
+strings (or NULL for NULL). Strings written into game memory as char* (string_t fields, hooked
+arguments and return values) point at such a copy: a pointer into the Python str would dangle
+as soon as the str is freed. Every distinct string written is kept.
+*/
+const char* InternString(const char* szText);
+
 
 #endif // _MEMORY_POINTER_H

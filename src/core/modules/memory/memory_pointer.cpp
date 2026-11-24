@@ -34,6 +34,9 @@
 // Utilities
 #include "utilities/call_python.h"
 
+#include <string>
+#include <unordered_set>
+
 #ifdef _WIN32
 	#include <Windows.h>
 #else
@@ -99,6 +102,11 @@ const char * CPointer::GetStringArray(int iOffset /* = 0 */)
 		return (const char *) m_ulAddr + iOffset;
 	EXCEPT_SEGV()
 	return NULL;
+}
+
+void CPointer::SetStringPointer(const char* szText, int iOffset /* = 0 */)
+{
+	Set<const char*>(InternString(szText), iOffset);
 }
 
 void CPointer::SetStringArray(char* szText, int iOffset /* = 0 */)
@@ -377,4 +385,19 @@ void CPointer::Protect(int size)
 void CPointer::UnProtect(int size)
 {
 	SetProtection(PROTECTION_EXECUTE_READ_WRITE, size);
+}
+
+
+//-----------------------------------------------------------------------------
+// InternString
+//-----------------------------------------------------------------------------
+const char* InternString(const char* szText)
+{
+	if (!szText)
+		return NULL;
+
+	// Never destroyed: game memory may point into it until the process exits. The elements of an
+	// unordered_set don't move when it grows.
+	static std::unordered_set<std::string>* s_pStrings = new std::unordered_set<std::string>;
+	return s_pStrings->insert(szText).first->c_str();
 }
