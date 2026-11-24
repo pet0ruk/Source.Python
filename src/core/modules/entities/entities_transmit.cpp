@@ -149,7 +149,7 @@ void CTransmitManager::Initialize()
 	delete pFunc;
 	m_pHook->AddCallback(
 		HOOKTYPE_POST,
-		(HookHandlerFn *)&CTransmitManager::CheckTransmit
+		&CTransmitManager::CheckTransmit
 	);
 
 	m_bInitialized = true;
@@ -164,7 +164,7 @@ void CTransmitManager::Finalize()
 	if (m_pHook) {
 		m_pHook->RemoveCallback(
 			HOOKTYPE_POST,
-			(HookHandlerFn *)&CTransmitManager::CheckTransmit
+			&CTransmitManager::CheckTransmit
 		);
 	}
 

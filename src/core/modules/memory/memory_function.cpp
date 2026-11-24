@@ -90,26 +90,45 @@ int GetDynCallConvention(Convention_t eConv)
 // ============================================================================
 // >> MakeDynamicHooksConvention
 // ============================================================================
-ICallingConvention* MakeDynamicHooksConvention(Convention_t eConv, std::vector<DataType_t> vecArgTypes, DataType_t returnType, int iAlignment)
+std::unique_ptr<ICallingConvention> MakeDynamicHooksConvention(Convention_t eConv, std::vector<DataType_t> vecArgTypes, DataType_t returnType, int iAlignment)
 {
+	typedef std::unique_ptr<ICallingConvention> ConventionPtr;
 #ifdef _WIN32
 	switch (eConv)
 	{
-	case CONV_CDECL: return new x86MsCdecl(vecArgTypes, returnType, iAlignment);
-	case CONV_THISCALL: return new x86MsThiscall(vecArgTypes, returnType, iAlignment);
-	case CONV_STDCALL: return new x86MsStdcall(vecArgTypes, returnType, iAlignment);
-	case CONV_FASTCALL: return new x86MsFastcall(vecArgTypes, returnType, iAlignment);
+	case CONV_CDECL: return ConventionPtr(new x86MsCdecl(vecArgTypes, returnType, iAlignment));
+	case CONV_THISCALL: return ConventionPtr(new x86MsThiscall(vecArgTypes, returnType, iAlignment));
+	case CONV_STDCALL: return ConventionPtr(new x86MsStdcall(vecArgTypes, returnType, iAlignment));
+	case CONV_FASTCALL: return ConventionPtr(new x86MsFastcall(vecArgTypes, returnType, iAlignment));
 	}
 #else
 	switch (eConv)
 	{
-	case CONV_CDECL: return new x86GccCdecl(vecArgTypes, returnType, iAlignment);
-	case CONV_THISCALL: return new x86GccThiscall(vecArgTypes, returnType, iAlignment);
+	case CONV_CDECL: return ConventionPtr(new x86GccCdecl(vecArgTypes, returnType, iAlignment));
+	case CONV_THISCALL: return ConventionPtr(new x86GccThiscall(vecArgTypes, returnType, iAlignment));
 	}
 #endif
 
 	BOOST_RAISE_EXCEPTION(PyExc_ValueError, "Unsupported calling convention.")
-	return NULL;
+	return ConventionPtr();
+}
+
+
+// ============================================================================
+// >> ShareCustomConvention
+// ============================================================================
+std::shared_ptr<ICallingConvention> ShareCustomConvention(object oConvention)
+{
+	ICallingConvention* pConvention = extract<ICallingConvention*>(oConvention);
+
+	// The Python object owns the convention: hold a reference to it for as long as the
+	// shared_ptr (and its copies, e.g. in a hook) exists.
+	PyObject* pOwner = oConvention.ptr();
+	Py_INCREF(pOwner);
+	return std::shared_ptr<ICallingConvention>(pConvention, [pOwner](ICallingConvention*) {
+		if (Py_IsInitialized())
+			Py_DECREF(pOwner);
+	});
 }
 
 
@@ -155,7 +174,7 @@ CFunction::CFunction(unsigned long ulAddr, object oCallingConvention, object oAr
 		// A custom calling convention will be used...
 		m_eCallingConvention = CONV_CUSTOM;
 		m_oCallingConvention = oCallingConvention(m_tArgs, m_eReturnType);
-		m_pCallingConvention = extract<ICallingConvention*>(m_oCallingConvention);
+		m_pCallingConvention = ShareCustomConvention(m_oCallingConvention);
 	}
 
 	// Step 4: Get the DynCall calling convention
@@ -168,7 +187,6 @@ CFunction::CFunction(unsigned long ulAddr, Convention_t eCallingConvention,
 {
 	m_eCallingConvention = eCallingConvention;
 	m_iCallingConvention = iCallingConvention;
-	m_pCallingConvention = NULL;
 	m_oCallingConvention = object();
 
 	m_tArgs = tArgs;
@@ -200,21 +218,8 @@ CFunction::CFunction(const CFunction& obj)
 
 CFunction::~CFunction()
 {
-	if (!m_pCallingConvention)
-		return;
-
-	if (m_eCallingConvention != CONV_CUSTOM)
-	{
-		// If we are using a built-in convention that is currently hooked, let's flag it as no longer hooked
-		// so that we know we are not bound to a CFunction anymore and can be deleted.
-		if (m_pCallingConvention->m_bHooked)
-			m_pCallingConvention->m_bHooked = false;
-		// If the convention isn't flagged as hooked, then we need to take care of it.
-		else
-			delete m_pCallingConvention;
-	}
-
-	m_pCallingConvention = NULL;
+	// The convention is released with m_pCallingConvention (a hook of this function keeps its own
+	// reference).
 }
 
 bool CFunction::IsCallable()
@@ -224,7 +229,7 @@ bool CFunction::IsCallable()
 
 bool CFunction::IsHookable()
 {
-	return m_pCallingConvention != NULL;
+	return static_cast<bool>(m_pCallingConvention);
 }
 
 bool CFunction::IsHooked()
@@ -238,7 +243,7 @@ CFunction* CFunction::GetTrampoline()
 	if (!pHook)
 		BOOST_RAISE_EXCEPTION(PyExc_ValueError, "Function was not hooked.")
 
-	return new CFunction((unsigned long) pHook->m_pTrampoline, m_eCallingConvention,
+	return new CFunction((unsigned long) pHook->GetTrampoline(), m_eCallingConvention,
 		m_iCallingConvention, m_tArgs, m_eReturnType, m_oConverter);
 }
 
@@ -342,7 +347,7 @@ object CFunction::CallTrampoline(PyObject *args, PyObject *kw)
 	if (!pHook)
 		BOOST_RAISE_EXCEPTION(PyExc_ValueError, "Function was not hooked.")
 
-	return CFunction((unsigned long) pHook->m_pTrampoline, m_eCallingConvention,
+	return CFunction((unsigned long) pHook->GetTrampoline(), m_eCallingConvention,
 		m_iCallingConvention, m_tArgs, m_eReturnType, m_oConverter).Call(args, kw);
 }
 
@@ -350,17 +355,25 @@ object CFunction::SkipHooks(PyObject *args, PyObject *kw)
 {
 	CHook* pHook = GetHookManager()->FindHook((void *) m_ulAddr);
 	if (pHook)
-		return CFunction((unsigned long) pHook->m_pTrampoline, m_eCallingConvention,
+		return CFunction((unsigned long) pHook->GetTrampoline(), m_eCallingConvention,
 			m_iCallingConvention, m_tArgs, m_eReturnType, m_oConverter).Call(args, kw);
 
 	return Call(args, kw);
 }
 
-CHook* HookFunctionHelper(void* addr, ICallingConvention* pConv)
+static CHook* HookFunctionUnguarded(void* addr, const std::shared_ptr<ICallingConvention>& pConv)
+{
+	return GetHookManager()->HookFunction(addr, pConv);
+}
+
+// Hooks with an access violation (bad address) caught on Windows. The function with __try
+// (TRY_SEGV) must not have objects to destroy (MSVC C2712), so the shared_ptr is copied in
+// HookFunctionUnguarded.
+CHook* HookFunctionHelper(void* addr, const std::shared_ptr<ICallingConvention>& pConv)
 {
 	CHook* result = NULL;
 	TRY_SEGV()
-		result = GetHookManager()->HookFunction(addr, pConv);
+		result = HookFunctionUnguarded(addr, pConv);
 	EXCEPT_SEGV()
 	return result;
 }
@@ -405,21 +418,17 @@ void CFunction::AddHook(HookType_t eType, PyObject* pCallable)
 		pHook = HookFunctionHelper((void *) m_ulAddr, m_pCallingConvention);
 
 		// DynamicHooks refuses functions whose first instructions it can't move (e.g. a function
-		// shorter than the hook's jump); the convention then still belongs to this function.
+		// shorter than the hook's jump).
 		if (!pHook)
 			BOOST_RAISE_EXCEPTION(PyExc_ValueError, "Failed to hook the function at %lu.", m_ulAddr)
-
-		// Reserve a Python reference for DynamicHooks.
-		if (m_eCallingConvention == CONV_CUSTOM)
-			Py_INCREF(m_oCallingConvention.ptr());
 	}
 
 	// Add the hook handler. If it's already added, it won't be added twice
-	pHook->AddCallback(eType, (HookHandlerFn *) (void *) &SP_HookHandler);
+	pHook->AddCallback(eType, &SP_HookHandler);
 	g_mapCallbacks[pHook][eType].push_back(object(handle<>(borrowed(pCallable))));
 }
 
-bool CFunction::AddHook(HookType_t eType, HookHandlerFn* pFunc)
+bool CFunction::AddHook(HookType_t eType, HookHandlerFn pFunc)
 {
 	if (!IsHookable())
 		return false;
@@ -431,10 +440,6 @@ bool CFunction::AddHook(HookType_t eType, HookHandlerFn* pFunc)
 
 		if (!pHook)
 			return false;
-
-		// Reserve a Python reference for DynamicHooks.
-		if (m_eCallingConvention == CONV_CUSTOM)
-			Py_INCREF(m_oCallingConvention.ptr());
 	}
 
 	pHook->AddCallback(eType, pFunc);
@@ -459,33 +464,6 @@ void CFunction::DeleteHook()
 
 	g_mapCallbacks.erase(pHook);
 
-	ICallingConventionWrapper *pConv = dynamic_cast<ICallingConventionWrapper *>(pHook->m_pCallingConvention);
-	if (pConv)
-	{
-		if (pConv->m_bHooked)
-		{
-			// Flag the convention as no longer hooked and being taken care of by DynamicHooks.
-			pHook->m_pCallingConvention->m_bHooked = false;
-
-			// Release the Python reference we reserved for DynamicHooks.
-			PyObject *pOwner = detail::wrapper_base_::owner(pConv);
-			if (pOwner && Py_REFCNT(pOwner))
-				Py_DECREF(pOwner);
-		}
-	}
-	else
-	{
-		// If we are using a built-in convention that is currently hooked, let's flag it as no longer hooked
-		// so that we know we are not bound to a CHook anymore and can be deleted.
-		if (pHook->m_pCallingConvention->m_bHooked)
-			pHook->m_pCallingConvention->m_bHooked = false;
-		// If we are a built-in convention bound to a CHook instance but not flagged as hooked anymore, then that
-		// means we are no longer bound to a CFunction instance and can be safely deleted.
-		else
-			delete pHook->m_pCallingConvention;
-	}
-
-	// Set the calling convention to NULL, because DynamicHooks will delete it otherwise.
-	pHook->m_pCallingConvention = NULL;
+	// Restores the function and releases the hook's reference to the calling convention.
 	GetHookManager()->UnhookFunction((void *) m_ulAddr);
 }

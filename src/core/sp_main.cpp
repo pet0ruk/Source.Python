@@ -270,12 +270,12 @@ bool CSourcePython::Load(	CreateInterfaceFn interfaceFactory, CreateInterfaceFn 
 
 	g_EntityHooks.push_back(new PlayerHook(
 		"run_command",
-		(HookHandlerFn*) (void*) &PrePlayerRunCommand,
+		&PrePlayerRunCommand,
 		HOOKTYPE_PRE));
 
 	g_EntityHooks.push_back(new PlayerHook(
 		"run_command",
-		(HookHandlerFn*) (void*) &PrePlayerRunCommand,
+		&PrePlayerRunCommand,
 		HOOKTYPE_POST));
 
 	InitHooks();

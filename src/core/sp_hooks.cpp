@@ -55,7 +55,7 @@ std::vector<IEntityHook*> g_EntityHooks;
 //---------------------------------------------------------------------------------
 // ISimpleEntityHook
 //---------------------------------------------------------------------------------
-ISimpleEntityHook::ISimpleEntityHook(const char* func_name, HookHandlerFn* hook_handler, HookType_t hook_type)
+ISimpleEntityHook::ISimpleEntityHook(const char* func_name, HookHandlerFn hook_handler, HookType_t hook_type)
 {
 	this->func_name = func_name;
 	this->hook_handler = hook_handler;
@@ -109,7 +109,7 @@ bool ISimpleEntityHook::Initialize(CBaseEntity* pEntity)
 //---------------------------------------------------------------------------------
 // PlayerHook
 //---------------------------------------------------------------------------------
-PlayerHook::PlayerHook(const char* func_name, HookHandlerFn* hook_handler, HookType_t hook_type)
+PlayerHook::PlayerHook(const char* func_name, HookHandlerFn hook_handler, HookType_t hook_type)
 	:ISimpleEntityHook(func_name, hook_handler, hook_type)
 {
 }
@@ -171,8 +171,8 @@ bool PrePlayerRunCommand(HookType_t hook_type, CHook* pHook)
 			return false;
 	}
 	else {
-		bUsePreRegister = pHook->m_bUsePreRegisters;
-		pHook->m_bUsePreRegisters = true;
+		bUsePreRegister = pHook->GetUsePreRegisters();
+		pHook->SetUsePreRegisters(true);
 
 		GET_LISTENER_MANAGER(OnPlayerPostRunCommand, post_run_command_manager);
 
@@ -223,7 +223,7 @@ bool PrePlayerRunCommand(HookType_t hook_type, CHook* pHook)
 #endif
 
 	if (hook_type == HOOKTYPE_POST) {
-		pHook->m_bUsePreRegisters = bUsePreRegister;
+		pHook->SetUsePreRegisters(bUsePreRegister);
 	}
 
 	return false;

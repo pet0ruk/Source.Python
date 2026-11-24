@@ -60,14 +60,14 @@ extern std::vector<IEntityHook*> g_EntityHooks;
 class ISimpleEntityHook: public IEntityHook
 {
 public:
-	ISimpleEntityHook(const char* func_name, HookHandlerFn* hook_handler, HookType_t hook_type);
+	ISimpleEntityHook(const char* func_name, HookHandlerFn hook_handler, HookType_t hook_type);
 	
 	virtual bool Initialize(CBaseEntity* pEntity);
 	virtual bool Test(CBaseEntity* pEntity) = 0;
 
 public:
 	const char* func_name;
-	HookHandlerFn* hook_handler;
+	HookHandlerFn hook_handler;
 	HookType_t hook_type;
 };
 
@@ -77,7 +77,7 @@ public:
 class PlayerHook: public ISimpleEntityHook
 {
 public:
-	PlayerHook(const char* func_name, HookHandlerFn* hook_handler, HookType_t hook_type);
+	PlayerHook(const char* func_name, HookHandlerFn hook_handler, HookType_t hook_type);
 
 	virtual bool Test(CBaseEntity* pEntity);
 };

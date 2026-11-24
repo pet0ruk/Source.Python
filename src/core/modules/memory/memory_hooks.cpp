@@ -93,7 +93,7 @@ bool SP_HookHandler(HookType_t eHookType, CHook* pHook)
 	object retval;
 	if (eHookType == HOOKTYPE_POST)
 	{
-		switch(pHook->m_pCallingConvention->m_returnType)
+		switch(pHook->GetCallingConvention()->m_returnType)
 		{
 			case DATA_TYPE_VOID:		retval = object(); break;
 			case DATA_TYPE_BOOL:		retval = GetReturnValue<bool>(pHook); break;
@@ -129,7 +129,7 @@ bool SP_HookHandler(HookType_t eHookType, CHook* pHook)
 			if (!pyretval.is_none())
 			{
 				bOverride = true;
-				switch(pHook->m_pCallingConvention->m_returnType)
+				switch(pHook->GetCallingConvention()->m_returnType)
 				{
 					case DATA_TYPE_VOID:		break;
 					case DATA_TYPE_BOOL:		SetReturnValue<bool>(pHook, pyretval); break;
@@ -169,7 +169,7 @@ CStackData::CStackData(CHook* pHook)
 
 object CStackData::GetItem(unsigned int iIndex)
 {
-	if (iIndex >= (unsigned int) m_pHook->m_pCallingConvention->m_vecArgTypes.size())
+	if (iIndex >= (unsigned int) m_pHook->GetCallingConvention()->m_vecArgTypes.size())
 		BOOST_RAISE_EXCEPTION(PyExc_IndexError, "Index out of range.")
 
 	// Argument already cached?
@@ -178,7 +178,7 @@ object CStackData::GetItem(unsigned int iIndex)
 	//if (retval)
 	//	return retval;
 
-	switch(m_pHook->m_pCallingConvention->m_vecArgTypes[iIndex])
+	switch(m_pHook->GetCallingConvention()->m_vecArgTypes[iIndex])
 	{
 		case DATA_TYPE_BOOL:		retval = GetArgument<bool>(m_pHook, iIndex); break;
 		case DATA_TYPE_CHAR:		retval = GetArgument<char>(m_pHook, iIndex); break;
@@ -203,12 +203,12 @@ object CStackData::GetItem(unsigned int iIndex)
 
 void CStackData::SetItem(unsigned int iIndex, object value)
 {
-	if (iIndex >= (unsigned int) m_pHook->m_pCallingConvention->m_vecArgTypes.size())
+	if (iIndex >= (unsigned int) m_pHook->GetCallingConvention()->m_vecArgTypes.size())
 		BOOST_RAISE_EXCEPTION(PyExc_IndexError, "Index out of range.")
 
 	// Update cache
 	//m_mapCache[iIndex] = value;
-	switch(m_pHook->m_pCallingConvention->m_vecArgTypes[iIndex])
+	switch(m_pHook->GetCallingConvention()->m_vecArgTypes[iIndex])
 	{
 		case DATA_TYPE_BOOL:		SetArgument<bool>(m_pHook, iIndex, value); break;
 		case DATA_TYPE_CHAR:		SetArgument<char>(m_pHook, iIndex, value); break;

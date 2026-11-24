@@ -57,41 +57,15 @@ public:
 		if (eDefaultConv != CONV_CUSTOM) {
 			m_pDefaultCallingConvention = MakeDynamicHooksConvention(eDefaultConv, m_vecArgTypes, m_returnType, m_iAlignment);
 		}
-		else {
-			m_pDefaultCallingConvention = nullptr;
-		}
 	}
 
-	virtual ~ICallingConventionWrapper()
-	{
-		// If we are still flagged as hooked, then that means DynamicHooks is done with us.
-		if (m_bHooked)
-		{
-			// Release the Python reference we reserved for DynamicHooks.
-			PyObject *pOwner = detail::wrapper_base_::owner(this);
-			if (pOwner && Py_REFCNT(pOwner))
-				Py_DECREF(pOwner);
-		}
-
-		delete m_pDefaultCallingConvention;
-		m_pDefaultCallingConvention = nullptr;
-	}
-
-	static void Deleter(ICallingConventionWrapper *pThis)
-	{
-		// If we are still hooked, DynamicHooks will take care of us.
-		if (pThis->m_bHooked)
-			return;
-
-		// We are not hooked, nor referenced anymore so we can be deleted.
-		delete pThis;
-	}
-
+	// The Python object owns the convention. A hook keeps the Python object alive (see
+	// ShareCustomConvention), so the convention outlives every hook using it.
 	static boost::shared_ptr<ICallingConventionWrapper> __init__(
 		object oArgTypes, DataType_t returnType, int iAlignment=4, Convention_t eDefaultConv=CONV_CUSTOM)
 	{
 		return boost::shared_ptr<ICallingConventionWrapper>(
-			new ICallingConventionWrapper(oArgTypes, returnType, iAlignment, eDefaultConv), &Deleter
+			new ICallingConventionWrapper(oArgTypes, returnType, iAlignment, eDefaultConv)
 		);
 	}
 
@@ -116,7 +90,7 @@ public:
 		}
 	}
 
-	virtual std::list<Register_t> GetRegisters()
+	virtual std::vector<Register_t> GetRegisters()
 	{
 		override get_registers = get_override("get_registers");
 		if (!get_registers && m_pDefaultCallingConvention) {
@@ -125,7 +99,7 @@ public:
 		CHECK_OVERRIDE(get_registers);
 
 		object registers = get_registers();
-		std::list<Register_t> result;
+		std::vector<Register_t> result;
 		for(int i=0; i < len(registers); i++)
 		{
 			result.push_back(extract<Register_t>(registers[i]));
@@ -194,6 +168,16 @@ public:
 		return_ptr_changed(ptr(pRegisters), CPointer((unsigned long) pReturnPtr));
 	}
 
+	// CallingConvention.get_registers: a list of Register values.
+	list GetRegistersList()
+	{
+		list registers;
+		for (Register_t reg : GetRegisters())
+			registers.append(reg);
+
+		return registers;
+	}
+
 	tuple GetArgTypes()
 	{
 		list argumentTypes;
@@ -206,7 +190,7 @@ public:
 	}
 
 public:
-	ICallingConvention* m_pDefaultCallingConvention;
+	std::unique_ptr<ICallingConvention> m_pDefaultCallingConvention;
 };
 
 
@@ -218,9 +202,20 @@ class CRegisterExt
 public:
 	static CPointer* GetAddress(CRegister& reg)
 	{
-		return new CPointer((unsigned long) reg.m_pAddress);
+		return new CPointer((unsigned long) reg.GetAddress());
 	}
 };
+
+
+// ============================================================================
+// >> CRegistersExt
+// ============================================================================
+// Registers.<name>: the saved register, or None if the convention doesn't save it.
+template<Register_t reg>
+CRegister* GetRegister(CRegisters& registers)
+{
+	return registers.Get(reg);
+}
 
 
 // ============================================================================
