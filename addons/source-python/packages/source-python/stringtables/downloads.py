@@ -52,6 +52,44 @@ class Downloadables(AutoUnload, set):
         # Add the item to the script's downloadables
         super().add(item)
 
+    def update(self, *others):
+        """Add the items of every given iterable to the downloadables.
+
+        Unlike :meth:`set.update`, this adds each item with :meth:`add`, so
+        it's put into the downloadables stringtable right away.
+        """
+        for other in others:
+            for item in other:
+                self.add(item)
+
+    def __ior__(self, other):
+        """Add the items of the given set (``downloadables |= other``)."""
+        if not isinstance(other, (set, frozenset)):
+            return NotImplemented
+
+        self.update(other)
+        return self
+
+    def symmetric_difference_update(self, other):
+        """Keep the items in either this set or the given iterable, not both.
+
+        New items are added with :meth:`add`, so they're put into the
+        downloadables stringtable right away.
+        """
+        for item in set(other):
+            if item in self:
+                self.remove(item)
+            else:
+                self.add(item)
+
+    def __ixor__(self, other):
+        """Update with the symmetric difference (``downloadables ^= other``)."""
+        if not isinstance(other, (set, frozenset)):
+            return NotImplemented
+
+        self.symmetric_difference_update(other)
+        return self
+
     def add_directory(self, directory):
         """Add all files in the given directory to the downloadables.
 
