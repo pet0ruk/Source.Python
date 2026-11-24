@@ -23,6 +23,9 @@ class Player(_Player):
 
     @wrap_entity_mem_func
     def give_named_item(self, item, sub_type=0, primary_ammo=-1,
-            secondary_ammo=-1):
+            secondary_ammo=-1, unk=False):
         """Give the player a named item."""
-        return [item, sub_type, primary_ammo, secondary_ammo]
+        # TODO: What's the unk argument for? The game passes False when it
+        # gives players their spawn equipment (CInfoMultiplayerSpawn,
+        # game_player_equip).
+        return [item, sub_type, primary_ammo, secondary_ammo, unk]

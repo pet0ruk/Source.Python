@@ -95,6 +95,11 @@ GAMES = {
         'bots': ['hl2mp_bot_add 3'],
         'server_only_class': 'info_player_deathmatch',
     },
+    'bms': {
+        'setup': ['sv_cheats 1'],                  # 'bot_add' is a cheat command
+        'bots': ['bot_add', 'bot_add', 'bot_add'],
+        'server_only_class': 'info_player_deathmatch',
+    },
     'left4dead2': {
         'setup': ['sb_all_bot_game 1', 'sv_cheats 1'],
         'bots': ['sb_add', 'sb_add', 'sb_add'],

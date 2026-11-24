@@ -10,7 +10,7 @@ docker/harness/run.sh css path/to/extracted-release out/css
 OVERLAY_REPO=1 docker/harness/run.sh dods release.zip       # test working-tree Python/data
 ```
 
-Games: the keys of `docker/srcds/games.json` (tf2, css, dods, hl2dm, l4d2, csgo). The release must be
+Games: the keys of `docker/srcds/games.json` (tf2, css, dods, hl2dm, l4d2, csgo, bms). The release must be
 for the same game (each Linux build targets one engine branch). Exit status is 0 only if every
 check passed; skips and known issues don't fail a run. Needs Docker, `jq` and Python 3.
 
