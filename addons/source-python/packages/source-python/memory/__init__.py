@@ -82,6 +82,9 @@ __all__ = ('BinaryFile',
 # Get the sp.memory logger
 memory_logger = _sp_logger.memory
 
+# mov eax, 0; ret; int3; int3 (see Callback.__init__)
+_CALLBACK_STUB = (0xB8, 0x00, 0x00, 0x00, 0x00, 0xC3, 0xCC, 0xCC)
+
 
 # =============================================================================
 # >> CLASSES
@@ -99,11 +102,15 @@ class Callback(AutoUnload, Function):
         """
         self.callback = None
 
-        # Allocate enough space for a jump, so we can hook it later. Then
-        # convert it to a function. Of course, this isn't a function, but the
-        # hook will override it.
-        super().__init__(
-            alloc(8, False).address, convention, arg_types, return_type)
+        # Allocate a stub function to hook ("mov eax, 0; ret", which is long
+        # enough for the hook's jump), and make it executable. The pre-hook
+        # always overrides the call, so the stub itself never runs.
+        stub = alloc(len(_CALLBACK_STUB), False)
+        for offset, byte in enumerate(_CALLBACK_STUB):
+            stub.set_uchar(byte, offset)
+
+        stub.unprotect(len(_CALLBACK_STUB))
+        super().__init__(stub.address, convention, arg_types, return_type)
 
         self.add_pre_hook(self._hook)
 

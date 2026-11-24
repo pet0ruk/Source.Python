@@ -346,6 +346,7 @@ def phase_static():
     check('memory.make_function', check_make_function)
     check('memory.vtable_pointer', check_vtable_pointer)
     check('memory.callback_bool', check_callback_bool)
+    check('memory.hook_refused', check_hook_refused)
     check('update.stage2', check_update_stage2)
     check('update.version_order', check_version_order)
     check('update.select_release', check_select_release)
@@ -551,6 +552,30 @@ def check_callback_bool():
     expect(results == (False, True), f'returned {results}')
     expect(seen == [(0, True, 2, False), (1, False, -27648, True)], f'arguments {seen}')
     return results
+
+
+def check_hook_refused():
+    """Hooking a function DynamicHooks can't patch safely (here one shorter than the hook's
+    jump: xor eax, eax; ret) raises ValueError and leaves the function unchanged, instead of
+    overwriting the code after it."""
+    from memory import Convention, DataType, alloc
+    code = (0x31, 0xC0, 0xC3, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC)
+    pointer = alloc(len(code))
+    for offset, byte in enumerate(code):
+        pointer.set_uchar(byte, offset)
+
+    function = pointer.make_function(Convention.CDECL, (), DataType.INT)
+    try:
+        function.add_pre_hook(lambda stack_data: None)
+    except ValueError as error:
+        message = str(error)
+    else:
+        raise AssertionError('the hook was added')
+
+    expect(not function.is_hooked(), 'the function is flagged as hooked')
+    after = tuple(pointer.get_uchar(offset) for offset in range(len(code)))
+    expect(after == code, f'the function was changed: {after}')
+    return message
 
 
 def check_update_stage2():
