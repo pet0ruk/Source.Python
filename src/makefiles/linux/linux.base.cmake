@@ -128,6 +128,9 @@ Set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -fno-threadsafe-statics -v -f
 # ------------------------------------------------------------------
 Set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--exclude-libs,libprotobuf.a")
 
+# Export only CreateInterface (see exports.map). docker/build/build.sh checks the result.
+Set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/makefiles/linux/exports.map")
+
 # Nothing in core.so needs an executable stack, which glibc >= 2.41 refuses to load ("cannot enable
 # executable stack as shared object requires"). dyncall's assembly is built with --noexecstack
 # (makefiles/dyncall/dyncall.cmake); this makes sure no other object without a .note.GNU-stack

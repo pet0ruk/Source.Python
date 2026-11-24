@@ -68,7 +68,16 @@ groupadd -o -g "$(id -g)" builder
 useradd -o -u "$(id -u)" -g "$(id -g)" -M -d /tmp builder
 exec runuser -u builder -- env HOME=/tmp bash -ec '
     cmake . -BBuilds/Linux/$BRANCH -DBRANCH=$BRANCH ${cmake_args[*]}
-    make -C Builds/Linux/$BRANCH -j$JOBS'
+    make -C Builds/Linux/$BRANCH -j$JOBS
+    # Both binaries must export only CreateInterface (makefiles/linux/exports.map).
+    for so in Builds/Linux/$BRANCH/core.so Builds/Linux/$BRANCH/source-python.so; do
+        exported=\$(nm -D --defined-only \$so | awk "{print \\\$3}" | sort -u)
+        if [ "\$exported" != CreateInterface ]; then
+            echo "!! \$so exports more than CreateInterface:" >&2
+            echo "\$exported" | head -20 >&2
+            exit 1
+        fi
+    done'
 EOF
 set +e
 docker run --rm --security-opt seccomp=unconfined -v "$WORK:/work" -w /work/src "$BUILD_IMAGE" bash /work/build-in-container.sh > "$OUT/build.log" 2>&1
