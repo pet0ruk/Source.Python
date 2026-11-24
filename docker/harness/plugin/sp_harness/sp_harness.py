@@ -368,6 +368,7 @@ def phase_static():
     check('memory.callback_bool', check_callback_bool)
     check('memory.hook_refused', check_hook_refused)
     check('memory.custom_convention', check_custom_convention)
+    check('memory.string_pointers', check_string_pointers)
     check('update.stage2', check_update_stage2)
     check('update.version_order', check_version_order)
     check('update.select_release', check_select_release)
@@ -376,6 +377,7 @@ def phase_static():
     check('cvars.find_var', lambda: expect(
         __import__('cvars').cvar.find_var('sv_gravity') is not None, 'sv_gravity not found'))
     check('cvars.create_set_get', check_convar)
+    check('cvars.dll_identifiers', check_dll_identifiers)
     check('keyvalues.roundtrip', check_keyvalues)
     check('commands.server_command', check_server_command)
     check('stringtables.downloadables', check_stringtables)
@@ -656,6 +658,76 @@ def check_stack_data():
     return {'pre': pre['use_pre_registers'], 'post': post['use_pre_registers']}
 
 
+def check_dll_identifiers():
+    """Each server binary registers its commands and convars under its own DLL identifier:
+    Source.Python's under SP_CVAR_DLL_IDENTIFIER, the engine's and other plugins' (Metamod,
+    its plugins, SourceMod, when installed with EXTRA_ADDONS) under theirs. Source.Python's
+    Linux binaries used to export the SDK's convar registration code, so plugins loaded after
+    them registered through Source.Python's copy and got its identifier (and lost their
+    convars when Source.Python unloaded)."""
+    from cvars import SP_CVAR_DLL_IDENTIFIER
+    from cvars import cvar
+
+    def identifier(name):
+        base = cvar.find_base(name)
+        return None if base is None else base.dll_identifier
+
+    for name in ('sp', 'sp_version'):
+        expect(identifier(name) == SP_CVAR_DLL_IDENTIFIER,
+               f'{name}: {identifier(name)} != {SP_CVAR_DLL_IDENTIFIER}')
+    expect(identifier('sv_gravity') != SP_CVAR_DLL_IDENTIFIER, 'sv_gravity has SP\'s identifier')
+
+    others = {}
+    for name in ('meta', 'metamod_version', 'stripper_version', 'stripper_cfg_path',
+                 'stripper_file_lowercase', 'sm', 'sourcemod_version'):
+        value = identifier(name)
+        if value is not None:
+            others[name] = value
+    shared = sorted(name for name, value in others.items() if value == SP_CVAR_DLL_IDENTIFIER)
+    expect(not shared, f'registered with SP\'s identifier: {shared}')
+    return {'sp': SP_CVAR_DLL_IDENTIFIER, **others}
+
+
+def check_string_pointers():
+    """Strings written into memory as char* (Pointer.set_string_pointer, string_pointer
+    attributes such as entities' string_t fields, and a string a hook returns) stay valid after
+    the Python strings are freed: they point at a copy Source.Python keeps."""
+    import gc
+    from memory import Callback, Convention, DataType, Function, alloc
+    from memory.manager import CustomType, TypeManager
+
+    def churn():
+        # Free the written strings and reuse their memory.
+        gc.collect()
+        return [str(n) * 40 for n in range(5000)]
+
+    pointer = alloc(4)
+    pointer.set_string_pointer(''.join(['sp_harness_', 'pointer_', str(1)]))
+
+    types = TypeManager()
+
+    class Named(CustomType, metaclass=types):
+        _size = 4
+        name = types.instance_attribute('string_pointer', 0)
+
+    named = Named()
+    named.name = '_'.join(['sp', 'harness', 'attribute'])
+
+    @Callback(Convention.CDECL, (DataType.INT,), DataType.STRING)
+    def callback(stack_data):
+        return f'sp_harness_return_{stack_data[0]}'
+
+    returns = Function(callback.address, Convention.CDECL, (DataType.INT,), DataType.STRING)
+    returned = returns(7)
+    garbage = churn()
+    results = (pointer.get_string_pointer(), named.name, returned)
+    callback._unload_instance()
+    del garbage
+    expect(results == ('sp_harness_pointer_1', 'sp_harness_attribute', 'sp_harness_return_7'),
+           f'read back {results!r}')
+    return results
+
+
 def check_update_stage2():
     """The loader applied the update the harness staged (tools/stage_update.sh): the marker only
     the update had is in data/source-python, and update/ is gone."""
@@ -764,6 +836,11 @@ def check_convar():
     variable = ConVar('sp_harness_var', '0', 'Source.Python harness test variable')
     variable.set_int(5)
     expect(variable.get_int() == 5, variable.get_int())
+    bounded = ConVar('sp_harness_bounded', '1', 'Source.Python harness bounded variable', 0,
+                     -2.5, 10.5)
+    expect(bounded.has_min() and bounded.has_max(), 'no bounds')
+    expect((bounded.min, bounded.max) == (-2.5, 10.5), (bounded.min, bounded.max))
+    return {'min': bounded.min, 'max': bounded.max}
 
 
 def check_keyvalues():
@@ -802,6 +879,14 @@ def check_stringtables():
     DOWNLOADABLES = Downloadables()
     DOWNLOADABLES.add(DOWNLOADABLE)
     expect(DOWNLOADABLE in table, f'{DOWNLOADABLE} was not added to the table')
+
+    # update() and |= (from a list, a generator and a set) also add to the table right away.
+    extra = [f'materials/sp_harness/update_{n}.vmt' for n in range(4)]
+    DOWNLOADABLES.update(extra[:1], (path for path in extra[1:2]))
+    DOWNLOADABLES |= {extra[2]}
+    DOWNLOADABLES ^= {extra[3]}
+    missing = [path for path in extra if path not in table or path not in DOWNLOADABLES]
+    expect(not missing, f'not added: {missing}')
     return len(table)
 
 
