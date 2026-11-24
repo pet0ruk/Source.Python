@@ -21,15 +21,15 @@
 #      SP_PYTHON_RUNTIME_ARCHIVE  a local bundle archive to use instead
 #                                 of downloading (not checksum-verified)
 # ------------------------------------------------------------------
-Set(SP_PYTHON_RUNTIME_RELEASE  3.13.17-r3)
+Set(SP_PYTHON_RUNTIME_RELEASE  3.13.17-r4)
 If(WIN32)
     Set(SP_PYTHON_RUNTIME_PLATFORM win32)
     Set(SP_PYTHON_RUNTIME_EXT      zip)
-    Set(SP_PYTHON_RUNTIME_SHA256   9cd5dd4f94e022bd511ee1f5aeca947eb12e7d02bc5328e2a265a5cc293da602)
+    Set(SP_PYTHON_RUNTIME_SHA256   1253eeabc27c707dad9031765034a86ee1c407406bfdb385803f9f8698d59ca4)
 Else()
     Set(SP_PYTHON_RUNTIME_PLATFORM manylinux_2_28_i686)
     Set(SP_PYTHON_RUNTIME_EXT      tar.gz)
-    Set(SP_PYTHON_RUNTIME_SHA256   cdbd883171d70f84f228eda26e48e70f9d3ef199dbae017c1aa91fa84cfa91d7)
+    Set(SP_PYTHON_RUNTIME_SHA256   60ca7472351a907ed36642a27da8e6a106f1a96f50d77de62baa0978c5c15d13)
 EndIf()
 Set(SP_PYTHON_RUNTIME_URL_BASE https://github.com/pet0ruk/source-python-runtime/releases/download)
 
@@ -118,8 +118,9 @@ If(WIN32)
         ${PYTHONSDK_LIB}/${SP_PYTHON_RUNTIME_BOOST_PYTHON_LIB}
     )
 Else()
+    # Only the shared libpython (the one the loader loads), not also libpython3.X.a: linking the
+    # static library as well put a second, unused copy of the interpreter into core.so.
     Set(PYTHONSDK_LIBS
-        ${PYTHONSDK_LIB}/libpython${SP_PYTHON_RUNTIME_PYTHON_ABI}.a
         ${PYTHONSDK_LIB}/${SP_PYTHON_RUNTIME_LIBPYTHON}
         ${PYTHONSDK_LIB}/libboost_python${_pyn}.a
     )
