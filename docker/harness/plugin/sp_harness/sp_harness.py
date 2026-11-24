@@ -111,6 +111,9 @@ RESULTS = {'checks': {}, 'running': None, 'finished': False,
 CHECKS = RESULTS['checks']
 
 #: Counters incremented by hooks/listeners; checked at the end of the run.
+# StackData as seen in the first pre_think pre-hook and post_think post-hook call.
+STACK_DATA = {}
+
 COUNTS = dict.fromkeys((
     'entity_pre_hook.pre_think', 'entity_post_hook.post_think', 'entity_pre_hook.run_command',
     'entity_pre_hook.on_take_damage', 'event.player_spawn', 'pre_event.player_spawn',
@@ -207,11 +210,28 @@ def expect(value, message):
 @EntityPreHook(EntityCondition.is_player, 'pre_think')
 def _pre_think(stack):
     COUNTS['entity_pre_hook.pre_think'] += 1
+    if 'pre' not in STACK_DATA:
+        STACK_DATA['pre'] = _stack_data_state(stack)
 
 
 @EntityPostHook(EntityCondition.is_player, 'post_think')
 def _post_think(stack, return_value):
     COUNTS['entity_post_hook.post_think'] += 1
+    if 'post' not in STACK_DATA:
+        state = _stack_data_state(stack)
+        # A post-hook can read the arguments as they were before the call.
+        stack.use_pre_registers = True
+        state['switched'] = stack.use_pre_registers
+        stack.use_pre_registers = False
+        STACK_DATA['post'] = state
+
+
+def _stack_data_state(stack):
+    """What a hook sees of its StackData (see check_stack_data)."""
+    address = stack.return_address
+    return {'use_pre_registers': stack.use_pre_registers,
+            'return_address': getattr(address, 'address', address),
+            'this': stack[0].address}
 
 
 @EntityPreHook(EntityCondition.is_player, 'run_command')
@@ -347,6 +367,7 @@ def phase_static():
     check('memory.vtable_pointer', check_vtable_pointer)
     check('memory.callback_bool', check_callback_bool)
     check('memory.hook_refused', check_hook_refused)
+    check('memory.custom_convention', check_custom_convention)
     check('update.stage2', check_update_stage2)
     check('update.version_order', check_version_order)
     check('update.select_release', check_select_release)
@@ -578,6 +599,63 @@ def check_hook_refused():
     return message
 
 
+def check_custom_convention():
+    """A calling convention written in Python (cdecl, from the saved registers) hooks a
+    function: memory.Callback calls the Python callback with the arguments the convention finds,
+    and returns the value through the convention's return pointer. Registers that aren't saved
+    are None."""
+    from memory import Callback, CallingConvention, Convention, DataType, Function, Pointer
+    from memory import Register
+    seen = []
+
+    class PythonCdecl(CallingConvention):
+        def get_registers(self):
+            return [Register.ESP, Register.EAX]
+
+        def get_pop_size(self):
+            return 0
+
+        def get_argument_ptr(self, index, registers):
+            seen.append((registers.esp.size, registers.eax.size, registers.ecx))
+            # The arguments follow the return address.
+            return Pointer(registers.esp.address.get_uint() + 4 + 4 * index)
+
+        def argument_ptr_changed(self, index, registers, ptr):
+            pass
+
+        def get_return_ptr(self, registers):
+            return registers.eax.address
+
+        def return_ptr_changed(self, registers, ptr):
+            pass
+
+    @Callback(PythonCdecl, (DataType.INT, DataType.INT), DataType.INT)
+    def callback(stack_data):
+        return stack_data[0] * 10 + stack_data[1]
+
+    function = Function(callback.address, Convention.CDECL, (DataType.INT, DataType.INT),
+                        DataType.INT)
+    result = function(4, 2)
+    expect(result == 42, f'returned {result}')
+    expect(seen and seen[0] == (4, 4, None), f'registers {seen[:1]}')
+    callback._unload_instance()
+    return result
+
+
+def check_stack_data():
+    """StackData in entity hooks: a pre-hook uses the registers saved before the call, a
+    post-hook those after it and can switch to the earlier ones; both see the call's return
+    address, and the this pointer (argument 0)."""
+    if 'pre' not in STACK_DATA or 'post' not in STACK_DATA:
+        raise Skip('pre_think/post_think have not been called yet')
+    pre, post = STACK_DATA['pre'], STACK_DATA['post']
+    expect(pre['use_pre_registers'] is True, f'pre-hook {pre}')
+    expect(post['use_pre_registers'] is False and post['switched'] is True, f'post-hook {post}')
+    expect(pre['return_address'] and post['return_address'], f'return addresses {pre} {post}')
+    expect(pre['this'] and post['this'], f'this pointers {pre} {post}')
+    return {'pre': pre['use_pre_registers'], 'post': post['use_pre_registers']}
+
+
 def check_update_stage2():
     """The loader applied the update the harness staged (tools/stage_update.sh): the marker only
     the update had is in data/source-python, and update/ is gone."""
@@ -804,6 +882,7 @@ def phase_players():
                      'players.take_damage', 'messages.send', 'menus.send'):
             skip(name, 'no bots on this game')
         skip('commands.client_command', 'no bots on this game')
+        skip('memory.stack_data', 'no bots on this game')
     else:
         player = players[0]
         HAD_PLAYERS.append(len(everyone))
@@ -811,6 +890,7 @@ def phase_players():
         check('players.helpers', lambda: check_player_helpers(player))
         check('players.teleport', lambda: check_player_teleport(player))
         check('players.take_damage', lambda: check_take_damage(player))
+        check('memory.stack_data', check_stack_data)
         check('messages.send', lambda: check_messages(player))
         check('menus.send', lambda: check_menus(player))
         if SOURCE_ENGINE == 'csgo':

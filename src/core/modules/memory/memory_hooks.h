@@ -58,21 +58,21 @@ public:
 
 	void* GetReturnAddress()
 	{
-		void* pESP = m_pHook->GetRegisters()->m_esp->GetValue<void*>();
-		if (m_pHook->m_RetAddr.count(pESP) == 0) {
+		CRegister* pESP = m_pHook->GetRegisters()->Get(ESP);
+		if (!pESP)
 			return NULL;
-		}
-		return m_pHook->m_RetAddr[pESP].back();
+
+		return m_pHook->FindReturnAddress(pESP->GetValue<void*>());
 	}
 
 	bool GetUsePreRegister()
 	{
-		return m_pHook->m_bUsePreRegisters;
+		return m_pHook->GetUsePreRegisters();
 	}
 
 	void SetUsePreRegisters(bool value)
 	{
-		m_pHook->m_bUsePreRegisters = value;
+		m_pHook->SetUsePreRegisters(value);
 	}
 
 protected:

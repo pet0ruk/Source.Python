@@ -36,6 +36,9 @@
 // DynamicHooks
 #include "manager.h"
 
+// C++
+#include <memory>
+
 
 // ============================================================================
 // >> Convention_t
@@ -92,7 +95,7 @@ public:
 
 	void DeleteHook();
 
-	bool AddHook(HookType_t eType, HookHandlerFn* pFunc);
+	bool AddHook(HookType_t eType, HookHandlerFn pFunc);
 
 public:
 	boost::python::tuple	m_tArgs;
@@ -105,8 +108,8 @@ public:
 	// DynCall calling convention
 	int						m_iCallingConvention;
 
-	// DynamicHooks calling convention (built-in and custom)
-	ICallingConvention*		m_pCallingConvention;
+	// DynamicHooks calling convention (built-in and custom), shared with the function's hook
+	std::shared_ptr<ICallingConvention>	m_pCallingConvention;
 
 	// Custom calling convention
 	object					m_oCallingConvention;
@@ -116,6 +119,10 @@ public:
 //---------------------------------------------------------------------------------
 // Functions
 //---------------------------------------------------------------------------------
-ICallingConvention* MakeDynamicHooksConvention(Convention_t eConv, std::vector<DataType_t> vecArgTypes, DataType_t returnType, int iAlignment=4);
+std::unique_ptr<ICallingConvention> MakeDynamicHooksConvention(Convention_t eConv, std::vector<DataType_t> vecArgTypes, DataType_t returnType, int iAlignment=4);
+
+// A reference to a custom calling convention (a Python CallingConvention instance) that keeps the
+// Python object alive.
+std::shared_ptr<ICallingConvention> ShareCustomConvention(object oConvention);
 
 #endif // _MEMORY_FUNCTION_H

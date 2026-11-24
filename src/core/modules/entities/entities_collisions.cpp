@@ -106,12 +106,12 @@ void CCollisionManager::Finalize()
 	BOOST_FOREACH(CollisionHooksMap_t::value_type it, m_mapHooks) {
 		it.first->RemoveCallback(
 			HOOKTYPE_PRE,
-			(HookHandlerFn *)&CCollisionManager::EnterScope
+			&CCollisionManager::EnterScope
 		);
 
 		it.first->RemoveCallback(
 			HOOKTYPE_POST,
-			(HookHandlerFn *)&CCollisionManager::ExitScope
+			&CCollisionManager::ExitScope
 		);
 	}
 
@@ -257,12 +257,12 @@ void CCollisionManager::RegisterHook(T tFunc, unsigned int uiFilterIndex, unsign
 
 	pHook->AddCallback(
 		HOOKTYPE_PRE,
-		(HookHandlerFn *)&CCollisionManager::EnterScope
+		&CCollisionManager::EnterScope
 	);
 
 	pHook->AddCallback(
 		HOOKTYPE_POST,
-		(HookHandlerFn *)&CCollisionManager::ExitScope
+		&CCollisionManager::ExitScope
 	);
 }
 
