@@ -105,7 +105,7 @@ public:
 		return fMin;
 	}
 
-	static bool GetMax(ConVar* pConVar)
+	static float GetMax(ConVar* pConVar)
 	{
 		float fMax;
 		pConVar->GetMax(fMax);
