@@ -1,0 +1,14 @@
+/*
+ * Source.Python's Linux binaries (the loader and core.so) export only CreateInterface, the one
+ * symbol the engine and the loader look up. Everything else stays local, in particular the SDK
+ * libraries linked in statically (tier1: ConVar_Register, ConCommandBase::s_pAccessor, ...):
+ * core.so is loaded with RTLD_GLOBAL, so binaries loaded after it (Metamod plugins, SourceMod
+ * extensions) would otherwise bind to Source.Python's copies and register their convars as
+ * Source.Python's.
+ */
+{
+    global:
+        CreateInterface;
+    local:
+        *;
+};

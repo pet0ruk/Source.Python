@@ -201,7 +201,15 @@ void export_pointer(scope _memory)
 		EXPOSE_GET_SET_TYPE(ulong_long, unsigned long long)
 		EXPOSE_GET_SET_TYPE(float, float)
 		EXPOSE_GET_SET_TYPE(double, double)
-		EXPOSE_GET_SET_TYPE(string_pointer, const char*)
+		EXPOSE_GET_TYPE(string_pointer, const char*)
+
+		.def("set_string_pointer",
+			&CPointer::SetStringPointer,
+			"Sets the value at the given memory location to a pointer to a copy of the string. "
+			"The copy stays valid until the server exits (and is shared by equal strings), so "
+			"the memory never points at freed Python data; every distinct string written is kept.",
+			("value", arg("offset")=0)
+		)
 
 		.def("get_pointer",
 			&CPointer::GetPtr,

@@ -17,6 +17,9 @@
 #                   in the working tree) over the release, to test Python/data changes against
 #                   prebuilt binaries without rebuilding
 #   NO_UPDATE=1     don't stage an update for the loader to apply on start (tools/stage_update.sh)
+#   EXTRA_ADDONS    a directory laid out like the game directory (e.g. addons/metamod.vdf and
+#                   addons/metamod/...) copied into the server as well, to test Source.Python next
+#                   to other server plugins
 #
 # Exit status: 0 if every check passed (skips are allowed), 1 otherwise.
 set -euo pipefail
@@ -56,6 +59,10 @@ if [ "${OVERLAY_REPO:-}" = 1 ]; then
     echo ">> overlaying working tree of $REPO"
     git -C "$REPO" ls-files -z addons cfg resource sound | (cd "$REPO" && tar -c --null -T -) \
         | tar -x -C "$OUT/sp"
+fi
+if [ -n "${EXTRA_ADDONS:-}" ]; then
+    echo ">> adding $EXTRA_ADDONS"
+    cp -a "$EXTRA_ADDONS/." "$OUT/sp/"
 fi
 CORE="$OUT/sp/addons/source-python/bin/core.so"
 [ -f "$CORE" ] || { echo "no addons/source-python/bin/core.so in $SRC" >&2; exit 2; }
