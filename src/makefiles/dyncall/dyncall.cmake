@@ -12,7 +12,11 @@ Set(DYNCALL_SRC ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/dyncall)
 
 If(MSVC)
     Enable_Language(ASM_MASM)
-    Set(DYNCALL_KERNEL ${DYNCALL_SRC}/dyncall/dyncall_call_x86_generic_masm.asm)
+    If(SP_X86_64)
+        Set(DYNCALL_KERNEL ${DYNCALL_SRC}/dyncall/dyncall_call_x64_generic_masm.asm)
+    Else()
+        Set(DYNCALL_KERNEL ${DYNCALL_SRC}/dyncall/dyncall_call_x86_generic_masm.asm)
+    EndIf()
 Else()
     Enable_Language(ASM)
     Set(DYNCALL_KERNEL ${DYNCALL_SRC}/dyncall/dyncall_call.S)
@@ -41,7 +45,7 @@ ForEach(_target dyncall_s dynload_s)
             MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
     Else()
         Target_Compile_Options(${_target} PRIVATE
-            -m32
+            $<$<NOT:$<BOOL:${SP_X86_64}>>:-m32>
             # dyncall's assembly has no .note.GNU-stack section; without this
             # its objects would make core.so require an executable stack.
             $<$<COMPILE_LANGUAGE:ASM>:-Wa,--noexecstack>

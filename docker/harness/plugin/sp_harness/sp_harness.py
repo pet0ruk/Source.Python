@@ -551,14 +551,16 @@ def check_make_function():
 def check_vtable_pointer():
     """An entity's vtable read through Pointer is the binary's vtable, and the gamedata
     'teleport' slot in it holds CBaseEntity::Teleport (worldspawn doesn't override it)."""
+    from memory import TYPE_SIZES
+    pointer_size = TYPE_SIZES['POINTER']
     world = _server_symbol('_ZTV6CWorld')
     vtable = Entity(0).pointer.get_pointer()
-    expect(vtable.address == world.address + 8,   # skip offset-to-top, RTTI
+    expect(vtable.address == world.address + 2 * pointer_size,   # skip offset-to-top, RTTI
            'worldspawn vtable is not _ZTV6CWorld')
     data = GameConfigObj(SP_DATA_PATH / 'entities' / 'CBaseEntity.ini')
     slot = int(data['virtual_function']['teleport']['offset_linux'])
     teleport = _server_symbol('_ZN11CBaseEntity8TeleportEPK6VectorPK6QAngleS2_').address
-    expect(vtable.get_pointer(4 * slot).address == teleport,
+    expect(vtable.get_pointer(pointer_size * slot).address == teleport,
            f'slot {slot} is not CBaseEntity::Teleport')
     return f'teleport slot {slot}'
 
@@ -610,20 +612,34 @@ def check_custom_convention():
     """A calling convention written in Python (cdecl, from the saved registers) hooks a
     function: memory.Callback calls the Python callback with the arguments the convention finds,
     and returns the value through the convention's return pointer. Registers that aren't saved
-    are None."""
+    are None. On x86-64 the convention is the platform's (the first arguments in registers)."""
     from memory import Callback, CallingConvention, Convention, DataType, Function, Pointer
     from memory import Register
+    from memory import TYPE_SIZES
     seen = []
+    x86_64 = TYPE_SIZES['POINTER'] == 8
+    if x86_64:
+        # System V: rdi, rsi; Microsoft x64: rcx, rdx
+        names = ('rdi', 'rsi') if PLATFORM == 'linux' else ('rcx', 'rdx')
+        stack, ret, unsaved = 'rsp', 'rax', 'r11'
+        registers_saved = [Register.RSP, Register.RAX] + [getattr(Register, n.upper()) for n in names]
+    else:
+        names = ()
+        stack, ret, unsaved = 'esp', 'eax', 'ecx'
+        registers_saved = [Register.ESP, Register.EAX]
 
     class PythonCdecl(CallingConvention):
         def get_registers(self):
-            return [Register.ESP, Register.EAX]
+            return registers_saved
 
         def get_pop_size(self):
             return 0
 
         def get_argument_ptr(self, index, registers):
-            seen.append((registers.esp.size, registers.eax.size, registers.ecx))
+            seen.append((getattr(registers, stack).size, getattr(registers, ret).size,
+                         getattr(registers, unsaved)))
+            if x86_64:
+                return getattr(registers, names[index]).address
             # The arguments follow the return address.
             return Pointer(registers.esp.address.get_uint() + 4 + 4 * index)
 
@@ -631,7 +647,7 @@ def check_custom_convention():
             pass
 
         def get_return_ptr(self, registers):
-            return registers.eax.address
+            return getattr(registers, ret).address
 
         def return_ptr_changed(self, registers, ptr):
             pass
@@ -644,7 +660,8 @@ def check_custom_convention():
                         DataType.INT)
     result = function(4, 2)
     expect(result == 42, f'returned {result}')
-    expect(seen and seen[0] == (4, 4, None), f'registers {seen[:1]}')
+    size = TYPE_SIZES['POINTER']
+    expect(seen and seen[0] == (size, size, None), f'registers {seen[:1]}')
     callback._unload_instance()
     return result
 

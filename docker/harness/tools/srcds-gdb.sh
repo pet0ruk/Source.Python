@@ -1,5 +1,6 @@
 #!/bin/bash
-# srcds_run -binary: runs srcds_linux under gdb (batch mode), so a crash leaves a report:
+# srcds_run -binary: runs srcds_linux (or $SRCDS_BINARY, e.g. ./srcds_linux64 for srcds_run_64)
+# under gdb (batch mode), so a crash leaves a report:
 # backtraces of all threads, registers, the instructions at the crash and the loaded libraries,
 # written to $CRASH_LOG (default /out/crash.txt). Exits with the server's exit status, or 139
 # after a crash. Installed into the harness image by docker/harness/Dockerfile.
@@ -35,7 +36,7 @@ if \$_isvoid(\$_exitcode)
 end
 quit \$_exitcode
 GDB
-gdb -q -batch -x "$commands" --args ./srcds_linux "$@"
+gdb -q -batch -x "$commands" --args "${SRCDS_BINARY:-./srcds_linux}" "$@"
 rc=$?
 rm -f "$commands"
 exit $rc

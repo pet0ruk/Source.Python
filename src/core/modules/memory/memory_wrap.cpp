@@ -733,6 +733,34 @@ void export_register_t(scope _memory)
 		// >> 80-bit FPU registers
 		// ========================================================================
 		.value("ST0", ST0)
+
+#ifdef DYNAMICHOOKS_X86_64
+		// x86-64 only
+		.value("RAX", RAX)
+		.value("RCX", RCX)
+		.value("RDX", RDX)
+		.value("RBX", RBX)
+		.value("RSP", RSP)
+		.value("RBP", RBP)
+		.value("RSI", RSI)
+		.value("RDI", RDI)
+		.value("R8", R8)
+		.value("R9", R9)
+		.value("R10", R10)
+		.value("R11", R11)
+		.value("R12", R12)
+		.value("R13", R13)
+		.value("R14", R14)
+		.value("R15", R15)
+		.value("XMM8", XMM8)
+		.value("XMM9", XMM9)
+		.value("XMM10", XMM10)
+		.value("XMM11", XMM11)
+		.value("XMM12", XMM12)
+		.value("XMM13", XMM13)
+		.value("XMM14", XMM14)
+		.value("XMM15", XMM15)
+#endif
 		// The following registers are currently not supported by DynamicHooks
 		/*
 		.value("ST1", ST1)
@@ -824,6 +852,34 @@ void export_registers(scope _memory)
 		.add_property("gs", make_function(&GetRegister<GS>, reference_existing_object_policy()))
 		
 		.add_property("st0", make_function(&GetRegister<ST0>, reference_existing_object_policy()))
+
+#ifdef DYNAMICHOOKS_X86_64
+		// x86-64 only
+		.add_property("rax", make_function(&GetRegister<RAX>, reference_existing_object_policy()))
+		.add_property("rcx", make_function(&GetRegister<RCX>, reference_existing_object_policy()))
+		.add_property("rdx", make_function(&GetRegister<RDX>, reference_existing_object_policy()))
+		.add_property("rbx", make_function(&GetRegister<RBX>, reference_existing_object_policy()))
+		.add_property("rsp", make_function(&GetRegister<RSP>, reference_existing_object_policy()))
+		.add_property("rbp", make_function(&GetRegister<RBP>, reference_existing_object_policy()))
+		.add_property("rsi", make_function(&GetRegister<RSI>, reference_existing_object_policy()))
+		.add_property("rdi", make_function(&GetRegister<RDI>, reference_existing_object_policy()))
+		.add_property("r8", make_function(&GetRegister<R8>, reference_existing_object_policy()))
+		.add_property("r9", make_function(&GetRegister<R9>, reference_existing_object_policy()))
+		.add_property("r10", make_function(&GetRegister<R10>, reference_existing_object_policy()))
+		.add_property("r11", make_function(&GetRegister<R11>, reference_existing_object_policy()))
+		.add_property("r12", make_function(&GetRegister<R12>, reference_existing_object_policy()))
+		.add_property("r13", make_function(&GetRegister<R13>, reference_existing_object_policy()))
+		.add_property("r14", make_function(&GetRegister<R14>, reference_existing_object_policy()))
+		.add_property("r15", make_function(&GetRegister<R15>, reference_existing_object_policy()))
+		.add_property("xmm8", make_function(&GetRegister<XMM8>, reference_existing_object_policy()))
+		.add_property("xmm9", make_function(&GetRegister<XMM9>, reference_existing_object_policy()))
+		.add_property("xmm10", make_function(&GetRegister<XMM10>, reference_existing_object_policy()))
+		.add_property("xmm11", make_function(&GetRegister<XMM11>, reference_existing_object_policy()))
+		.add_property("xmm12", make_function(&GetRegister<XMM12>, reference_existing_object_policy()))
+		.add_property("xmm13", make_function(&GetRegister<XMM13>, reference_existing_object_policy()))
+		.add_property("xmm14", make_function(&GetRegister<XMM14>, reference_existing_object_policy()))
+		.add_property("xmm15", make_function(&GetRegister<XMM15>, reference_existing_object_policy()))
+#endif
 
 		// The following registers are currently not supported by DynamicHooks
 		/*

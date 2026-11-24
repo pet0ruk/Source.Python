@@ -12,6 +12,7 @@
 #                python-runtime.txt  the Python runtime's manifest
 #
 # Env:
+#   ARCH         x86 (default) or x86_64 (64-bit servers: tf2, css, dods, hl2dm)
 #   HL2SDK_REV   hl2sdk commit/branch to build against (default: the branch head, like Build.sh)
 #   JOBS         parallel compile jobs (default: nproc; each Boost.Python unit needs 1-2 GB RAM)
 #   SP_PYTHON_RUNTIME_ARCHIVE  local Python runtime bundle (.tar.gz) to build and ship with,
@@ -22,17 +23,25 @@
 #
 # The build runs in manylinux_2_28 (AlmaLinux 8, glibc 2.28) with gcc-toolset's GCC 14, which
 # links the C++ features newer than the system libstdc++ 8 statically: the binaries need only
-# glibc 2.28 and libstdc++ 8's symbol versions, like the Python runtime they embed. The image's
-# userland is 32-bit, and 32-bit glibc creates sockets with socketcall(2), which Docker's default
-# seccomp profile refuses (Docker 29.4 on GitHub's runners), so the container runs without
-# seccomp; that's also why it isn't a Dockerfile (docker build can't turn seccomp off).
+# glibc 2.28 and libstdc++ 8's symbol versions, like the Python runtime they embed. The image is
+# manylinux_2_28_i686 for x86 and manylinux_2_28_x86_64 for x86_64. The i686 image's userland is
+# 32-bit, and 32-bit glibc creates sockets with socketcall(2), which Docker's default seccomp
+# profile refuses (Docker 29.4 on GitHub's runners), so that container runs without seccomp;
+# that's also why it isn't a Dockerfile (docker build can't turn seccomp off).
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 REPO=$(git -C "$HERE" rev-parse --show-toplevel)
 BRANCH=${1:?usage: build.sh <branch> <out-dir>}
 OUT=$(realpath -m "${2:?usage: build.sh <branch> <out-dir>}")
 JOBS=${JOBS:-$(nproc)}
-BUILD_IMAGE=quay.io/pypa/manylinux_2_28_i686@sha256:baf927c001d9dfead35e53de68b2c113b623155b7a878cc45e2e1ad61c9fb5e7
+ARCH=${ARCH:-x86}
+case $ARCH in
+    x86) BUILD_IMAGE=quay.io/pypa/manylinux_2_28_i686@sha256:baf927c001d9dfead35e53de68b2c113b623155b7a878cc45e2e1ad61c9fb5e7
+         SECCOMP=(--security-opt seccomp=unconfined) ;;
+    x86_64) BUILD_IMAGE=quay.io/pypa/manylinux_2_28_x86_64@sha256:d086f64cddcace250ef0f0073583c51b8298159303290a730c9f59bd91edfd2c
+            SECCOMP=() ;;
+    *) echo "ARCH must be x86 or x86_64, not $ARCH" >&2; exit 2 ;;
+esac
 [ -f "$REPO/src/makefiles/branch/$BRANCH.cmake" ] || { echo "unknown branch '$BRANCH'" >&2; exit 2; }
 
 WORK=$OUT/work
@@ -55,8 +64,8 @@ if [ -d "$WORK/src/patches/$BRANCH" ]; then
     cp -r "$WORK/src/patches/$BRANCH/." "$SDK/"
 fi
 
-echo ">> building $BRANCH with $JOBS jobs"
-cmake_args=()
+echo ">> building $BRANCH ($ARCH) with $JOBS jobs"
+cmake_args=(-DSP_ARCH=$ARCH)
 if [ -n "${SP_PYTHON_RUNTIME_ARCHIVE:-}" ]; then
     cp "$SP_PYTHON_RUNTIME_ARCHIVE" "$WORK/python-runtime.tar.gz"
     cmake_args+=(-DSP_PYTHON_RUNTIME_ARCHIVE=/work/python-runtime.tar.gz)
@@ -80,7 +89,7 @@ exec runuser -u builder -- env HOME=/tmp bash -ec '
     done'
 EOF
 set +e
-docker run --rm --security-opt seccomp=unconfined -v "$WORK:/work" -w /work/src "$BUILD_IMAGE" bash /work/build-in-container.sh > "$OUT/build.log" 2>&1
+docker run --rm "${SECCOMP[@]}" -v "$WORK:/work" -w /work/src "$BUILD_IMAGE" bash /work/build-in-container.sh > "$OUT/build.log" 2>&1
 rc=$?
 set -e
 if [ $rc != 0 ]; then

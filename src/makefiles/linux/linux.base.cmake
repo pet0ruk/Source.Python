@@ -53,6 +53,14 @@ If(SOURCE_ENGINE MATCHES "bms")
         ${SOURCESDK_LIB}/public/linux32/libtier0_srv.so
         ${SOURCESDK_LIB}/public/linux32/libvstdlib_srv.so
     )
+ElseIf(SOURCE_ENGINE MATCHES "orangebox" AND SP_X86_64)
+    Set(SOURCEPYTHON_LINK_LIBRARIES
+        "${SOURCEPYTHON_LINK_LIBRARIES}"
+         ${SOURCESDK_LIB}/public/linux64/mathlib.a
+         ${SOURCESDK_LIB}/public/linux64/tier1.a
+         ${SOURCESDK_LIB}/public/linux64/libtier0_srv.so
+         ${SOURCESDK_LIB}/public/linux64/libvstdlib_srv.so
+    )
 ElseIf(SOURCE_ENGINE MATCHES "orangebox")
     Set(SOURCEPYTHON_LINK_LIBRARIES
         "${SOURCEPYTHON_LINK_LIBRARIES}"
@@ -119,7 +127,11 @@ Set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-conversion-null -Wno-write-strings"
 Set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-invalid-offsetof -Wno-reorder")
 
 # Others
-Set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mfpmath=sse -msse -m32 -fno-strict-aliasing")
+If(SP_X86_64)
+    Set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-strict-aliasing")
+Else()
+    Set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mfpmath=sse -msse -m32 -fno-strict-aliasing")
+EndIf()
 Set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -fno-threadsafe-statics -v -fvisibility=hidden")
 
 

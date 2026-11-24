@@ -58,7 +58,11 @@ public:
 
 	void* GetReturnAddress()
 	{
+#ifdef DYNAMICHOOKS_X86_64
+		CRegister* pESP = m_pHook->GetRegisters()->Get(RSP);
+#else
 		CRegister* pESP = m_pHook->GetRegisters()->Get(ESP);
+#endif
 		if (!pESP)
 			return NULL;
 

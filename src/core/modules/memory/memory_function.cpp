@@ -38,12 +38,17 @@
 #include "memory_wrap.h"
 
 // DynamicHooks
-#include "conventions/x86MsCdecl.h"
-#include "conventions/x86MsThiscall.h"
-#include "conventions/x86MsStdcall.h"
-#include "conventions/x86MsFastcall.h"
-#include "conventions/x86GccCdecl.h"
-#include "conventions/x86GccThiscall.h"
+#ifdef DYNAMICHOOKS_X86_64
+	#include "conventions/x86_64MicrosoftDefault.h"
+	#include "conventions/x86_64SystemVDefault.h"
+#else
+	#include "conventions/x86MsCdecl.h"
+	#include "conventions/x86MsThiscall.h"
+	#include "conventions/x86MsStdcall.h"
+	#include "conventions/x86MsFastcall.h"
+	#include "conventions/x86GccCdecl.h"
+	#include "conventions/x86GccThiscall.h"
+#endif
 
 // Source.Python
 #include "utilities/call_python.h"
@@ -66,6 +71,20 @@ DCCallVM* g_pCallVM = dcNewCallVM(4096);
 // ============================================================================
 int GetDynCallConvention(Convention_t eConv)
 {
+#ifdef DYNAMICHOOKS_X86_64
+	// x86-64 has one convention per platform (System V, Microsoft x64): this is the first
+	// argument, and stdcall and fastcall are the same as cdecl, so gamedata written for 32-bit
+	// keeps working.
+	switch (eConv)
+	{
+		case CONV_CUSTOM: return -1;
+		case CONV_CDECL:
+		case CONV_THISCALL:
+		case CONV_STDCALL:
+		case CONV_FASTCALL:
+			return DC_CALL_C_DEFAULT;
+	}
+#else
 	switch (eConv)
 	{
 		case CONV_CUSTOM: return -1;
@@ -81,6 +100,7 @@ int GetDynCallConvention(Convention_t eConv)
 		case CONV_FASTCALL: return DC_CALL_C_X86_WIN32_FAST_MS;
 #endif
 	}
+#endif
 
 	BOOST_RAISE_EXCEPTION(PyExc_ValueError, "Unsupported calling convention.")
 	return -1;
@@ -93,7 +113,22 @@ int GetDynCallConvention(Convention_t eConv)
 std::unique_ptr<ICallingConvention> MakeDynamicHooksConvention(Convention_t eConv, std::vector<DataType_t> vecArgTypes, DataType_t returnType, int iAlignment)
 {
 	typedef std::unique_ptr<ICallingConvention> ConventionPtr;
-#ifdef _WIN32
+#ifdef DYNAMICHOOKS_X86_64
+	// One convention per platform, see GetDynCallConvention.
+	#ifdef _WIN32
+		typedef x86_64MicrosoftDefault PlatformConvention;
+	#else
+		typedef x86_64SystemVDefault PlatformConvention;
+	#endif
+	switch (eConv)
+	{
+	case CONV_CDECL:
+	case CONV_THISCALL:
+	case CONV_STDCALL:
+	case CONV_FASTCALL:
+		return ConventionPtr(new PlatformConvention(vecArgTypes, returnType));
+	}
+#elif defined(_WIN32)
 	switch (eConv)
 	{
 	case CONV_CDECL: return ConventionPtr(new x86MsCdecl(vecArgTypes, returnType, iAlignment));
