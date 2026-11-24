@@ -17,7 +17,7 @@ on:
         required: true
         type: choice
         default: all
-        options: [all, tf2, css, dods, hl2dm, l4d2, csgo]
+        options: [all, tf2, css, dods, hl2dm, l4d2, csgo, bms]
       platform:
         description: Platform to build
         required: true

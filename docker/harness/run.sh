@@ -3,7 +3,7 @@
 #
 #   docker/harness/run.sh <game> <source-python release .zip | extracted dir> [out-dir]
 #
-#   <game>     a key of docker/srcds/games.json (tf2, css, dods, hl2dm, l4d2, csgo)
+#   <game>     a key of docker/srcds/games.json (tf2, css, dods, hl2dm, l4d2, csgo, bms)
 #   out-dir    default ./sp-harness-out/<game>; receives results.json, console.log,
 #              Source.Python's logs and the gamedata check output
 #

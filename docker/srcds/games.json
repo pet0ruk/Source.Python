@@ -45,5 +45,15 @@
     "prune": "csgo/pakxv_* csgo/panorama",
     "remove_game_libstdcxx": true,
     "notes": "No version_app_id: the CS:GO server (app 740) hasn't changed since CS2 replaced it (version 1575, Oct 2023), so the image is only built when missing. Its server ships the client's content; vpk_strip and prune drop what a dedicated server doesn't load (textures, audio, UI images, the China/low-violence variants, the Panorama UI: 28 GB -> 4.4 GB). Its bundled libgcc_s is older than the image's libstdc++, which the engine then fails to load."
+  },
+  "bms": {
+    "app_id": 346680,
+    "version_app_id": 362890,
+    "game_dir": "bms",
+    "sp_engine": "bms",
+    "map": "dm_crossfire",
+    "vpk_strip": "bms/bms_models_dir.vpk:vtx,jpg",
+    "prune": "bms/bms_textures_* bms/bms_sounds_misc_* bms/bms_sound_vo_english_* bms/bms_maps_* hl2/hl2_textures_* hl2/hl2_sounds_misc_*",
+    "notes": "Black Mesa. Its server ships the client's content (33 GB); a dedicated server doesn't load textures, audio, the singleplayer maps (the multiplayer ones are loose files) or models' render meshes (.vtx), so those are dropped (5.2 GB)."
   }
 }
