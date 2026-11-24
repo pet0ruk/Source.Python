@@ -361,11 +361,19 @@ object CFunction::SkipHooks(PyObject *args, PyObject *kw)
 	return Call(args, kw);
 }
 
-CHook* HookFunctionHelper(void* addr, std::shared_ptr<ICallingConvention> pConv)
+static CHook* HookFunctionUnguarded(void* addr, const std::shared_ptr<ICallingConvention>& pConv)
+{
+	return GetHookManager()->HookFunction(addr, pConv);
+}
+
+// Hooks with an access violation (bad address) caught on Windows. The function with __try
+// (TRY_SEGV) must not have objects to destroy (MSVC C2712), so the shared_ptr is copied in
+// HookFunctionUnguarded.
+CHook* HookFunctionHelper(void* addr, const std::shared_ptr<ICallingConvention>& pConv)
 {
 	CHook* result = NULL;
 	TRY_SEGV()
-		result = GetHookManager()->HookFunction(addr, pConv);
+		result = HookFunctionUnguarded(addr, pConv);
 	EXCEPT_SEGV()
 	return result;
 }
