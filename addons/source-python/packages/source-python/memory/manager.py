@@ -12,6 +12,7 @@ from core import GameConfigObj
 from memory import Convention
 from memory import DataType
 from memory import EXPOSED_CLASSES
+from memory import Pointer
 from memory import TYPE_SIZES
 from memory import alloc
 from memory import find_binary
@@ -723,8 +724,13 @@ class TypeManager(dict):
 
     def global_pointer(
             self, cls, binary, identifier, offset=0, level=0, srv_check=True,
-            accessor=False, accessor_offset=0):
-        """Search for a global pointer and wrap the it."""
+            accessor=False, accessor_offset=0, relative=False):
+        """Search for a global pointer and wrap the it.
+
+        With ``relative``, the identifier's code addresses the global
+        relative to the instruction pointer (x86-64): the 32-bit
+        displacement at ``offset`` is added to the end of that field.
+        """
         manager_logger.log_debug(
             'Retrieving global pointer for {}...'.format(cls.__name__))
 
@@ -739,6 +745,11 @@ class TypeManager(dict):
                 (),
                 DataType.POINTER
             )()
+            for _ in range(level):
+                ptr = ptr.get_pointer()
+        elif relative:
+            ptr = binary[identifier]
+            ptr = Pointer(ptr.address + offset + 4 + ptr.get_int(offset))
             for _ in range(level):
                 ptr = ptr.get_pointer()
         else:
@@ -765,7 +776,8 @@ class TypeManager(dict):
                 (Key.LEVEL, Key.as_int, 0),
                 (Key.SRV_CHECK, Key.as_bool, True),
                 (Key.ACCESSOR, Key.as_bool, False),
-                (Key.ACCESSOR_OFFSET, Key.as_int, 0)
+                (Key.ACCESSOR_OFFSET, Key.as_int, 0),
+                (Key.RELATIVE, Key.as_bool, False)
             )
         )
 

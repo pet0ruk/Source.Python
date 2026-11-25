@@ -128,8 +128,9 @@ Microsoft x64 on Windows), so :attr:`memory.Convention.CDECL`, ``THISCALL``, ``S
 32-bit servers works unchanged. :class:`memory.CallingConvention` and
 :func:`memory.get_data_type_size` default to the pointer size (4 or 8) as alignment.
 
-Offsets into structures usually differ, because pointers are 8 bytes. In gamedata files, a key
-ending in ``_linux_x86_64`` or ``_windows_x86_64`` (e.g. ``offset_linux_x86_64``) is used on
-64-bit servers before ``_linux`` / ``_windows`` and the plain key (see
+Offsets into structures usually differ, because pointers are 8 bytes, and Windows signatures
+are different code. In gamedata files, a key ending in ``_linux_x86_64`` or ``_windows_x86_64``
+(e.g. ``offset_linux_x86_64``), then one ending in ``_x86_64``, is used on 64-bit servers before
+``_linux`` / ``_windows`` and the plain key (see
 :func:`memory.helpers.get_platform_value`). Virtual function indexes have been the same on
 both in the games checked so far.

@@ -50,6 +50,7 @@ from filters.players import PlayerIter
 #   Listeners
 from listeners import OnClientActive
 from listeners import OnConVarChanged
+from listeners import OnEntityOutput
 from listeners import OnLevelEnd
 from listeners import OnLevelInit
 from listeners import OnLevelShutdown
@@ -361,6 +362,7 @@ def phase_static():
     check('entities.create_origin_remove', check_entity_create)
     check('entities.set_model', check_entity_set_model)
     check('entities.teleport', check_entity_teleport)
+    check('entities.output_listener', check_entity_output)
     check('filters.entity_iter_networked', check_entity_iter)
     if GAME['server_only_class']:
         check('filters.base_entity_iter_server_only', check_base_entity_iter)
@@ -440,6 +442,32 @@ def check_site_packages_speedups():
                                        'sqlalchemy.cyextension.collections'))
 
 
+_entity_outputs = []
+
+
+@OnEntityOutput
+def _on_entity_output(output_name, activator, caller, value, delay):
+    if caller is not None and caller.classname == 'info_target':
+        _entity_outputs.append((output_name, caller.pointer.address, activator, delay))
+
+
+def check_entity_output():
+    """OnEntityOutput (a hook on CBaseEntityOutput::FireOutput, gamedata entity_output): an
+    entity's FireUser1 input fires its OnUser1 output."""
+    entity = Entity.create('info_target')
+    entity.spawn()
+    try:
+        del _entity_outputs[:]
+        entity.call_input('FireUser1', '')
+        expect(_entity_outputs, 'no output fired')
+        name, address, activator, delay = _entity_outputs[0]
+        expect((name, address, delay) == ('OnUser1', entity.pointer.address, 0.0),
+               _entity_outputs)
+        return name
+    finally:
+        entity.remove()
+
+
 def check_entity_create():
     entity = Entity.create('info_target')
     entity.spawn()
@@ -506,7 +534,10 @@ def check_platform_value():
     """memory.helpers.get_platform_value: the 64-bit key wins only on a 64-bit server."""
     from memory.helpers import get_platform_value
     x86_64 = sys.maxsize > 2 ** 32
-    data = {'offset': 1, f'offset_{PLATFORM}': 2, f'offset_{PLATFORM}_x86_64': 3}
+    data = {'offset': 1, f'offset_{PLATFORM}': 2, 'offset_x86_64': 3,
+            f'offset_{PLATFORM}_x86_64': 4}
+    expect(get_platform_value(data, 'offset') == (4 if x86_64 else 2), data)
+    del data[f'offset_{PLATFORM}_x86_64']
     expect(get_platform_value(data, 'offset') == (3 if x86_64 else 2), data)
     expect(get_platform_value({'offset': 1}, 'offset') == 1, 'shared key')
     expect(get_platform_value({}, 'offset', 4) == 4, 'default')

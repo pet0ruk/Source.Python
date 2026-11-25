@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Extract the files of a public container image without Docker (Python standard library only).
 
-  oci_extract.py <registry>/<repository>:<tag> <dest dir> [path prefix]
+  oci_extract.py <registry>/<repository>:<tag> <dest dir> [path prefix [path ...]]
 
 Downloads the image's layers (anonymous pull token; checked against their sha256 digests) and
 unpacks them in order into <dest dir>. With a path prefix (e.g. srv/srcds) only that subtree is
-extracted, with the prefix removed. Meant for the files-only srcds:<game>-windows images
+extracted, with the prefix removed; with paths after it, only those files (relative to the
+prefix). Meant for the files-only srcds:<game>-windows images
 (docker/srcds/Dockerfile, target windows), which Windows runners can't pull with Docker because
 they are Linux images. Whiteout files are honoured.
 """
@@ -69,7 +70,7 @@ def safe_join(root, name):
     return path
 
 
-def extract_layer(path, dest, prefix):
+def extract_layer(path, dest, prefix, only=()):
     with tarfile.open(path) as tar:
         for member in tar:
             name = member.name.lstrip('./')
@@ -79,6 +80,8 @@ def extract_layer(path, dest, prefix):
                 name = name[len(prefix):].lstrip('/')
                 if not name:
                     continue
+            if only and name not in only:
+                continue
             directory, base = os.path.split(name)
             if base.startswith('.wh.'):          # whiteout: delete from earlier layers
                 target = safe_join(dest, os.path.join(directory, base[4:]))
@@ -104,7 +107,7 @@ def extract_layer(path, dest, prefix):
             # links and devices are not needed for the server files and are skipped
 
 
-def main(ref, dest, prefix=''):
+def main(ref, dest, prefix='', *only):
     registry, _, rest = ref.partition('/')
     repository, _, tag = rest.rpartition(':') if ':' in rest.rsplit('/', 1)[-1] else (rest, '', 'latest')
     with request(f'https://{registry}/token?scope=repository:{repository}:pull') as r:
@@ -125,12 +128,12 @@ def main(ref, dest, prefix=''):
         try:
             if sha.hexdigest() != expected:
                 raise SystemExit(f'{digest}: downloaded data has {algorithm} {sha.hexdigest()}')
-            extract_layer(tmp.name, dest, prefix)
+            extract_layer(tmp.name, dest, prefix, set(only))
         finally:
             os.remove(tmp.name)
 
 
 if __name__ == '__main__':
-    if len(sys.argv) not in (3, 4):
+    if len(sys.argv) < 3:
         sys.exit(__doc__)
     main(*sys.argv[1:])

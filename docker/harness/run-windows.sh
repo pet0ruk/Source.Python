@@ -9,6 +9,9 @@
 #              srcds_run.log and Source.Python's logs
 #
 # Env:
+#   ARCH            x86 (default) or x86_64: run the 64-bit server (srcds_win64.exe) with a 64-bit
+#                   build. For a game without a 64-bit launcher (games.json: x86_64_launcher,
+#                   e.g. CS:S) srcds_win64.exe is taken from that game's image (TF2's).
 #   SRCDS_IMAGE     image repository (default ghcr.io/pet0ruk/srcds); the tag is <game>-windows,
 #                   a files-only image with the Windows server (see docker/srcds/Dockerfile)
 #   SERVER_DIR      where to put the server (default <out>/server); reused if it already has
@@ -35,6 +38,12 @@ SRCDS_IMAGE=${SRCDS_IMAGE:-ghcr.io/pet0ruk/srcds}
 SERVER_DIR=$(realpath -m "${SERVER_DIR:-$OUT/server}")
 TIMEOUT=${TIMEOUT:-240}
 PYTHON=$(command -v python3 || command -v python)
+ARCH=${ARCH:-x86}
+case $ARCH in
+    x86) SRCDS_EXE=srcds.exe PE_MACHINE=014c ;;
+    x86_64) SRCDS_EXE=srcds_win64.exe PE_MACHINE=8664 ;;
+    *) echo "ARCH must be x86 or x86_64, not $ARCH" >&2; exit 2 ;;
+esac
 
 cfg() { "$PYTHON" -I -c 'import json, sys; print(json.load(open(sys.argv[1]))[sys.argv[2]][sys.argv[3]])' \
             "$GAMES_JSON" "$GAME" "$1"; }
@@ -45,6 +54,14 @@ if [ ! -f "$SERVER_DIR/srcds.exe" ]; then
     echo ">> extracting $SRCDS_IMAGE:$GAME-windows into $SERVER_DIR"
     rm -rf "$SERVER_DIR"
     "$PYTHON" -I "$HERE/tools/oci_extract.py" "$SRCDS_IMAGE:$GAME-windows" "$SERVER_DIR" srv/srcds
+fi
+if [ "$ARCH" = x86_64 ] && [ ! -f "$SERVER_DIR/$SRCDS_EXE" ]; then
+    LAUNCHER_GAME=$(cfg x86_64_launcher 2>/dev/null || true)
+    [ -n "$LAUNCHER_GAME" ] || { echo "$GAME has no $SRCDS_EXE (games.json: x86_64_launcher)" >&2; exit 2; }
+    # CS:S, DoD:S and HL2DM ship a 64-bit engine and server but no 64-bit launcher
+    echo ">> $SRCDS_EXE from $SRCDS_IMAGE:$LAUNCHER_GAME-windows"
+    "$PYTHON" -I "$HERE/tools/oci_extract.py" "$SRCDS_IMAGE:$LAUNCHER_GAME-windows" "$SERVER_DIR" \
+        srv/srcds "$SRCDS_EXE"
 fi
 G=$SERVER_DIR/$GAME_DIR
 
@@ -67,6 +84,9 @@ if [ "${OVERLAY_REPO:-}" = 1 ]; then
         | tar -x -C "$G"
 fi
 [ -f "$G/addons/source-python/bin/core.dll" ] || { echo "no addons/source-python/bin/core.dll in $SRC" >&2; exit 2; }
+# the build must be for the server's architecture (PE machine 014c: x86, 8664: x64)
+machine=$("$PYTHON" -I -c 'import struct, sys; d = open(sys.argv[1], "rb").read(4096); print("%04x" % struct.unpack_from("<H", d, struct.unpack_from("<I", d, 0x3c)[0] + 4)[0])' "$G/addons/source-python/bin/core.dll")
+[ "$machine" = "$PE_MACHINE" ] || { echo "core.dll isn't an $ARCH build (machine $machine)" >&2; exit 2; }
 mkdir -p "$G/addons/source-python/plugins/sp_harness" "$G/cfg"
 cp "$HERE/plugin/sp_harness/sp_harness.py" "$G/addons/source-python/plugins/sp_harness/"
 printf 'sv_hibernate_when_empty 0\nsp plugin load sp_harness\n' > "$G/cfg/sp_harness.cfg"
@@ -76,7 +96,7 @@ printf 'sv_hibernate_when_empty 0\nsp plugin load sp_harness\n' > "$G/cfg/sp_har
 echo 'not available on Windows (server.dll has no symbols)' > "$OUT/gamedata-vtables.txt"
 echo skip > "$OUT/gamedata-vtables.rc"
 
-echo ">> running $GAME_DIR on $MAP (timeout ${TIMEOUT}s)"
+echo ">> running $GAME_DIR ($ARCH) on $MAP (timeout ${TIMEOUT}s)"
 # srcds.exe -console needs a real console as its input ("CTextConsoleWin32::GetLine:
 # !GetNumberOfConsoleInputEvents" otherwise, then it hangs), so it gets a console of its own via
 # Start-Process instead of Git Bash's pipes; its output goes to console.log (-condebug), which is
@@ -89,16 +109,16 @@ if [ "${CRASH_DUMPS:-}" = 1 ]; then
     mkdir -p "$OUT/dumps"
     powershell.exe -NoProfile -NonInteractive -Command "
         \$wer = 'HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting'
-        New-Item -Force -Path \"\$wer\LocalDumps\srcds.exe\" | Out-Null
-        Set-ItemProperty -Path \"\$wer\LocalDumps\srcds.exe\" -Name DumpFolder -Type ExpandString -Value '$OUT_WIN\dumps'
-        Set-ItemProperty -Path \"\$wer\LocalDumps\srcds.exe\" -Name DumpType -Type DWord -Value 1
-        Set-ItemProperty -Path \"\$wer\LocalDumps\srcds.exe\" -Name DumpCount -Type DWord -Value 3
+        New-Item -Force -Path \"\$wer\LocalDumps\$SRCDS_EXE\" | Out-Null
+        Set-ItemProperty -Path \"\$wer\LocalDumps\$SRCDS_EXE\" -Name DumpFolder -Type ExpandString -Value '$OUT_WIN\dumps'
+        Set-ItemProperty -Path \"\$wer\LocalDumps\$SRCDS_EXE\" -Name DumpType -Type DWord -Value 1
+        Set-ItemProperty -Path \"\$wer\LocalDumps\$SRCDS_EXE\" -Name DumpCount -Type DWord -Value 3
         Set-ItemProperty -Path \$wer -Name DontShowUI -Type DWord -Value 1" \
         || echo ">> could not enable crash dumps (needs admin rights)"
 fi
 ARGS="-console -game $GAME_DIR -condebug -norestart -insecure -nohltv +sv_lan 1 +sv_hibernate_when_empty 0 +maxplayers 8 +map $MAP +exec sp_harness.cfg"
 powershell.exe -NoProfile -NonInteractive -Command "
-    \$p = Start-Process -FilePath (Join-Path '$SERVER_WIN' 'srcds.exe') -WorkingDirectory '$SERVER_WIN' \
+    \$p = Start-Process -FilePath (Join-Path '$SERVER_WIN' '$SRCDS_EXE') -WorkingDirectory '$SERVER_WIN' \
          -ArgumentList '$ARGS' -PassThru
     if (-not \$p.WaitForExit(${TIMEOUT}000)) {
         & taskkill.exe /T /F /PID \$p.Id | Out-Null
@@ -120,8 +140,9 @@ if [ "${CRASH_DUMPS:-}" = 1 ] && [ "$(cat "$OUT/srcds.rc")" != 0 ]; then
 fi
 if [ -n "$dump" ]; then
     cdb=""
-    for c in "/c/Program Files (x86)/Windows Kits/10/Debuggers/x86/cdb.exe" \
-             "/c/Program Files/Windows Kits/10/Debuggers/x86/cdb.exe"; do
+    DBG_ARCH=$( [ "$ARCH" = x86_64 ] && echo x64 || echo x86 )
+    for c in "/c/Program Files (x86)/Windows Kits/10/Debuggers/$DBG_ARCH/cdb.exe" \
+             "/c/Program Files/Windows Kits/10/Debuggers/$DBG_ARCH/cdb.exe"; do
         [ -x "$c" ] && cdb=$c && break
     done
     if [ -n "$cdb" ]; then

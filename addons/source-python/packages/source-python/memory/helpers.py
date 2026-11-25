@@ -41,11 +41,12 @@ __all__ = ('Array',
 # >> GLOBAL VARIABLES
 # =============================================================================
 # Key suffixes tried, most specific first. Servers running a 64-bit build
-# (x86_64) first try e.g. "offset_linux_x86_64", for data whose value differs
-# from the 32-bit one (structure offsets that follow a pointer).
+# (x86_64) first try e.g. "offset_linux_x86_64", then "offset_x86_64", for
+# data whose value differs from the 32-bit one (structure offsets that follow
+# a pointer, signatures).
 _KEY_SUFFIXES = ('_' + PLATFORM, '')
 if sys.maxsize > 2 ** 32:
-    _KEY_SUFFIXES = ('_' + PLATFORM + '_x86_64',) + _KEY_SUFFIXES
+    _KEY_SUFFIXES = ('_' + PLATFORM + '_x86_64', '_x86_64') + _KEY_SUFFIXES
 
 
 # =============================================================================
@@ -100,6 +101,7 @@ class Key(object):
     LEVEL = 'level'
     ACCESSOR = 'accessor'
     ACCESSOR_OFFSET = 'accessor_offset'
+    RELATIVE = 'relative'
 
     # (Virtual) function keys
     ARGS = 'arguments'
@@ -365,9 +367,9 @@ class MemberFunction(Function):
 def get_platform_value(data, key, default=None):
     """Return the most specific value of a key for this server.
 
-    On 64-bit servers ``<key>_<platform>_x86_64`` is tried first (e.g.
-    ``offset_linux_x86_64``), then ``<key>_<platform>`` (e.g.
-    ``offset_linux``), then ``<key>``.
+    On 64-bit servers ``<key>_<platform>_x86_64`` (e.g.
+    ``offset_linux_x86_64``) and ``<key>_x86_64`` are tried first, then
+    ``<key>_<platform>`` (e.g. ``offset_linux``), then ``<key>``.
 
     :param dict data: The data to look the key up in.
     :param str key: The name of the key.
@@ -404,8 +406,8 @@ def parse_data(manager, raw_data, keys):
 
     You can specialize every key by adding ''_windows'' (for Windows) or
     ''_linux'' (for Linux) to the end a key. On 64-bit servers, a key ending
-    in ''_windows_x86_64'' or ''_linux_x86_64'' is used before those (see
-    get_platform_value()).
+    in ''_windows_x86_64'', ''_linux_x86_64'' or ''_x86_64'' is used before
+    those (see get_platform_value()).
 
     For example:
     If you are using a signature on Windows, but a symbol on Linux, you have
