@@ -30,7 +30,9 @@
     "version_app_id": 320,
     "game_dir": "hl2mp",
     "sp_engine": "orangebox",
-    "map": "dm_lockdown"
+    "map": "dm_lockdown",
+    "x86_64": true,
+    "x86_64_launcher": "tf2"
   },
   "l4d2": {
     "app_id": 222860,
