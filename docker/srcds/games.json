@@ -21,7 +21,9 @@
     "version_app_id": 300,
     "game_dir": "dod",
     "sp_engine": "orangebox",
-    "map": "dod_avalanche"
+    "map": "dod_avalanche",
+    "x86_64": true,
+    "x86_64_launcher": "tf2"
   },
   "hl2dm": {
     "app_id": 232370,
