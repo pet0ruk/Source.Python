@@ -123,7 +123,7 @@ bool SP_HookHandler(HookType_t eHookType, CHook* pHook)
 			case DATA_TYPE_ULONG_LONG:	retval = GetReturnValue<unsigned long long>(pHook); break;
 			case DATA_TYPE_FLOAT:		retval = GetReturnValue<float>(pHook); break;
 			case DATA_TYPE_DOUBLE:		retval = GetReturnValue<double>(pHook); break;
-			case DATA_TYPE_POINTER:		retval = object(CPointer(pHook->GetReturnValue<unsigned long>())); break;
+			case DATA_TYPE_POINTER:		retval = object(CPointer(pHook->GetReturnValue<uintptr_t>())); break;
 			case DATA_TYPE_STRING:		retval = GetReturnValue<const char *>(pHook); break;
 			default: BOOST_RAISE_EXCEPTION(PyExc_TypeError, "Unknown type.");
 		}
@@ -161,7 +161,7 @@ bool SP_HookHandler(HookType_t eHookType, CHook* pHook)
 					case DATA_TYPE_DOUBLE:		SetReturnValue<double>(pHook, pyretval); break;
 					case DATA_TYPE_POINTER:
 					{
-						pHook->SetReturnValue<unsigned long>(ExtractAddress(pyretval));
+						pHook->SetReturnValue<uintptr_t>(ExtractAddress(pyretval));
 					} break;
 					case DATA_TYPE_STRING:		SetReturnValue<const char*>(pHook, pyretval); break;
 					default: BOOST_RAISE_EXCEPTION(PyExc_TypeError, "Unknown type.")
@@ -207,7 +207,7 @@ object CStackData::GetItem(unsigned int iIndex)
 		case DATA_TYPE_ULONG_LONG:	retval = GetArgument<unsigned long long>(m_pHook, iIndex); break;
 		case DATA_TYPE_FLOAT:		retval = GetArgument<float>(m_pHook, iIndex); break;
 		case DATA_TYPE_DOUBLE:		retval = GetArgument<double>(m_pHook, iIndex); break;
-		case DATA_TYPE_POINTER:		retval = object(CPointer(m_pHook->GetArgument<unsigned long>(iIndex))); break;
+		case DATA_TYPE_POINTER:		retval = object(CPointer(m_pHook->GetArgument<uintptr_t>(iIndex))); break;
 		case DATA_TYPE_STRING:		retval = GetArgument<const char *>(m_pHook, iIndex); break;
 		default: BOOST_RAISE_EXCEPTION(PyExc_TypeError, "Unknown type.") break;
 	}
@@ -239,7 +239,7 @@ void CStackData::SetItem(unsigned int iIndex, object value)
 		case DATA_TYPE_DOUBLE:		SetArgument<double>(m_pHook, iIndex, value); break;
 		case DATA_TYPE_POINTER:
 		{
-			SetArgument<unsigned long>(m_pHook, iIndex, object(ExtractAddress(value)));
+			SetArgument<uintptr_t>(m_pHook, iIndex, object(ExtractAddress(value)));
 		} break;
 		case DATA_TYPE_STRING:		SetArgument<const char *>(m_pHook, iIndex, value); break;
 		default: BOOST_RAISE_EXCEPTION(PyExc_TypeError, "Unknown type.")

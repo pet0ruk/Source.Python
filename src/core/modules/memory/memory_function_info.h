@@ -120,7 +120,7 @@ inline int MFI_GetVtblOffset(void *mfp)
     {
         // May or may not be!
         // Check where it'd jump
-        addr += 5 /*size of the instruction*/ + *(unsigned long*)(addr + 1);
+        addr += 5 /*size of the instruction*/ + *(int32_t*)(addr + 1);
     }
 
     // Check whether it's a virtual function call
@@ -142,7 +142,23 @@ inline int MFI_GetVtblOffset(void *mfp)
 
     // With varargs, the this pointer is passed as if it was the first argument
 
+    // On x64 (this in rcx, also for varargs):
+    // 48 8B 01            mov         rax,qword ptr [rcx]
+    // FF 60 08            jmp         qword ptr [rax+8]      (or 48 FF 60 08)
+    //		==OR==
+    // 48 8B 01            mov         rax,qword ptr [rcx]
+    // FF A0 18 03 00 00   jmp         qword ptr [rax+318h]
+
     bool ok = false;
+#ifdef _WIN64
+    if (addr[0] == 0x48 && addr[1] == 0x8B && addr[2] == 0x01)
+    {
+        addr += 3;
+        if (*addr == 0x48)
+            addr++;
+        ok = true;
+    }
+#else
     if (addr[0] == 0x8B && addr[1] == 0x44 && addr[2] == 0x24 && addr[3] == 0x04 &&
         addr[4] == 0x8B && addr[5] == 0x00)
     {
@@ -154,6 +170,7 @@ inline int MFI_GetVtblOffset(void *mfp)
         addr += 2;
         ok = true;
     }
+#endif
     if (!ok)
         return -1;
 
@@ -161,11 +178,11 @@ inline int MFI_GetVtblOffset(void *mfp)
     {
         if (*addr == 0x60)
         {
-            return *++addr / 4;
+            return *++addr / SH_PTRSIZE;
         }
         else if (*addr == 0xA0)
         {
-            return *((unsigned int*)++addr) / 4;
+            return *((unsigned int*)++addr) / SH_PTRSIZE;
         }
         else if (*addr == 0x20)
             return 0;

@@ -49,6 +49,10 @@
 #if defined(_WIN32)
 #	define PYLIB_NAME PYLIB_NAME_WIN32
 #	define VCRUNTIME_LIB "Python3/plat-win/vcruntime140.dll"
+#	if defined(_WIN64)
+		// x64 Python also needs vcruntime140_1.dll (C++ exception handling)
+#		define VCRUNTIME_1_LIB "Python3/plat-win/vcruntime140_1.dll"
+#	endif
 #elif defined(LINUX)
 #	define PYLIB_NAME PYLIB_NAME_LINUX
 #endif

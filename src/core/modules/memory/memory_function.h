@@ -59,8 +59,8 @@ enum Convention_t
 class CFunction: public CPointer
 {
 public:
-	CFunction(unsigned long ulAddr, object oCallingConvention, object oArgs, object oReturnType);
-	CFunction(unsigned long ulAddr, Convention_t eCallingConvention, int iCallingConvention,
+	CFunction(uintptr_t ulAddr, object oCallingConvention, object oArgs, object oReturnType);
+	CFunction(uintptr_t ulAddr, Convention_t eCallingConvention, int iCallingConvention,
 		boost::python::tuple tArgs, DataType_t eReturnType, object oConverter);
 
 	CFunction(const CFunction& obj);

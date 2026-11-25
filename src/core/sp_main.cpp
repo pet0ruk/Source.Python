@@ -257,7 +257,8 @@ bool CSourcePython::Load(	CreateInterfaceFn interfaceFactory, CreateInterfaceFn 
 
 	// TODO: Don't hardcode the offset of CMDLCache's notifier (the member
 	// CMDLCache::SetCacheNotify sets: "mov [rdi+0x68], rsi" in the 64-bit
-	// datacache_srv.so of the orangebox games, 0x40 in the 32-bit one).
+	// datacache_srv.so of the orangebox games and "mov [rcx+0x68], rdx" in the
+	// 64-bit datacache.dll (vtable slot 5); 0x40 in the 32-bit ones).
 #if defined(PLATFORM_64BITS)
 	#define CACHE_NOTIFY_OFFSET 104
 #elif defined(ENGINE_LEFT4DEAD2)
@@ -460,8 +461,8 @@ void CSourcePython::ClientSettingsChanged( edict_t *pEdict )
 //-----------------------------------------------------------------------------
 PLUGIN_RESULT CSourcePython::ClientConnect( bool *bAllowConnect, edict_t *pEntity, const char *pszName, const char *pszAddress, char *reject, int maxrejectlen )
 {
-	CPointer allowConnect = CPointer((unsigned long) bAllowConnect);
-	CPointer rejectMessage = CPointer((unsigned long) reject);
+	CPointer allowConnect = CPointer((uintptr_t) bAllowConnect);
+	CPointer rejectMessage = CPointer((uintptr_t) reject);
 	CALL_LISTENERS(OnClientConnect, allowConnect, ptr(pEntity), pszName, pszAddress, rejectMessage, maxrejectlen);
 	return PLUGIN_OVERRIDE;
 }

@@ -140,7 +140,7 @@ public:
 			return;
 		}
 		CHECK_OVERRIDE(argument_ptr_changed);
-		argument_ptr_changed(iIndex, ptr(pRegisters), CPointer((unsigned long) pArgumentPtr));
+		argument_ptr_changed(iIndex, ptr(pRegisters), CPointer((uintptr_t) pArgumentPtr));
 	}
 
 	virtual void* GetReturnPtr(CRegisters* pRegisters)
@@ -165,7 +165,7 @@ public:
 		}
 		CHECK_OVERRIDE(return_ptr_changed);
 
-		return_ptr_changed(ptr(pRegisters), CPointer((unsigned long) pReturnPtr));
+		return_ptr_changed(ptr(pRegisters), CPointer((uintptr_t) pReturnPtr));
 	}
 
 	// CallingConvention.get_registers: a list of Register values.
@@ -202,7 +202,7 @@ class CRegisterExt
 public:
 	static CPointer* GetAddress(CRegister& reg)
 	{
-		return new CPointer((unsigned long) reg.GetAddress());
+		return new CPointer((uintptr_t) reg.GetAddress());
 	}
 };
 

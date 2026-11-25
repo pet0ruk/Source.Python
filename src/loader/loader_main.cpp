@@ -209,6 +209,11 @@ bool CSourcePython::Load( CreateInterfaceFn interfaceFactory, CreateInterfaceFn 
 		return false;
 	}
 #endif
+#if defined(VCRUNTIME_1_LIB)
+	if( SPLoadLibrary(engine, VCRUNTIME_1_LIB) == NULL ) {
+		return false;
+	}
+#endif
 	// Linux: zlib used to be preloaded from Python3/plat-linux (issue #466). The Python runtime
 	// now links zlib statically into its modules, so the server's own copy no longer matters.
 

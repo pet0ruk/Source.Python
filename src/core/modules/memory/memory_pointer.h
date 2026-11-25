@@ -68,9 +68,9 @@ class CFunctionInfo;
 class CPointer
 {
 public:
-	CPointer(unsigned long ulAddr = 0, bool bAutoDealloc = false);
+	CPointer(uintptr_t ulAddr = 0, bool bAutoDealloc = false);
 	
-	operator unsigned long() const { return m_ulAddr; }
+	operator uintptr_t() const { return m_ulAddr; }
 
 	// Implement some operators
 	template<class T>
@@ -180,7 +180,7 @@ public:
 	void				Validate();
 
 public:
-	unsigned long m_ulAddr;
+	uintptr_t m_ulAddr;
 	bool          m_bAutoDealloc;
 };
 
@@ -190,17 +190,17 @@ public:
 // ============================================================================
 inline CPointer* Alloc(int iSize, bool bAutoDealloc = true)
 {
-	return new CPointer((unsigned long) UTIL_Alloc(iSize), bAutoDealloc);
+	return new CPointer((uintptr_t) UTIL_Alloc(iSize), bAutoDealloc);
 }
 
 
 // ============================================================================
 // >> GetPtrHelper
 // ============================================================================
-inline unsigned long GetPtrHelper(unsigned long addr)
+inline uintptr_t GetPtrHelper(uintptr_t addr)
 {
 	TRY_SEGV()
-		return *(unsigned long *) addr;
+		return *(uintptr_t *) addr;
 	EXCEPT_SEGV()
 	return 0;
 }
