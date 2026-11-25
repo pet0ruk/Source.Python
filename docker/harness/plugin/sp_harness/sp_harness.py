@@ -354,6 +354,11 @@ def phase_static():
     check('runtime.soabi', lambda: sysconfig.get_config_var('SOABI'))
     check('runtime.site_packages_native', check_site_packages_native)
     check('runtime.site_packages_speedups', check_site_packages_speedups)
+    check('packages.versions', check_package_versions)
+    check('packages.sqlalchemy_roundtrip', check_sqlalchemy_roundtrip)
+    check('packages.psycopg2_libpq', check_psycopg2_libpq)
+    check('packages.tls_trust_store', check_tls_trust_store)
+    check('packages.greenlet_switch', check_greenlet_switch)
 
     check('engine.map_name', lambda: expect(global_vars.map_name, 'no map'))
     check('engine.max_clients', lambda: expect(global_vars.max_clients >= WANT_PLAYERS + 1,
@@ -427,10 +432,9 @@ def check_stdlib_native():
 
 
 def check_site_packages_native(modules=None):
-    """Compiled site-packages must load their C extensions, not a pure-Python fallback
-    (psycopg2 is only shipped on Linux)."""
+    """Compiled site-packages must load their C extensions, not a pure-Python fallback."""
     if modules is None:
-        modules = ('greenlet._greenlet',) + (('psycopg2._psycopg',) if PLATFORM == 'linux' else ())
+        modules = ('greenlet._greenlet', 'psycopg2._psycopg')
     loaded, missing = {}, []
     for module in modules:
         try:
@@ -450,6 +454,148 @@ def check_site_packages_native(modules=None):
 def check_site_packages_speedups():
     return check_site_packages_native(('markupsafe._speedups', 'charset_normalizer.md',
                                        'sqlalchemy.cyextension.collections'))
+
+
+#: requirements.txt name -> (module, version attribute) of the vendored packages whose version
+#: can be read at runtime (there are no .dist-info directories)
+PACKAGE_VERSIONS = {
+    'babel': ('babel', '__version__'),
+    'certifi': ('certifi', '__version__'),
+    'charset-normalizer': ('charset_normalizer', '__version__'),
+    'configobj': ('configobj', '__version__'),
+    'docutils': ('docutils', '__version__'),
+    'greenlet': ('greenlet', '__version__'),
+    'idna': ('idna', '__version__'),
+    'Jinja2': ('jinja2', '__version__'),
+    'MarkupSafe': ('markupsafe', '__version__'),
+    'mutagen': ('mutagen', 'version_string'),
+    'packaging': ('packaging', '__version__'),
+    'psycopg2': ('psycopg2', '__version__'),
+    'Pygments': ('pygments', '__version__'),
+    'PyMySQL': ('pymysql', 'VERSION_STRING'),   # __version__ is mysqlclient's, for compatibility
+    'requests': ('requests', '__version__'),
+    'Sphinx': ('sphinx', '__version__'),
+    'SQLAlchemy': ('sqlalchemy', '__version__'),
+    'urllib3': ('urllib3', '__version__'),
+}
+
+
+def check_package_versions():
+    """The vendored packages (and the compiled ones from the Python runtime) are the versions
+    site-packages/requirements.txt lists."""
+    import importlib
+    import warnings
+    from paths import SITE_PACKAGES_PATH
+    wanted = dict(line.strip().split('==') for line in
+                  (SITE_PACKAGES_PATH / 'requirements.txt').read_text().splitlines()
+                  if '==' in line)
+    expect(set(PACKAGE_VERSIONS) <= set(wanted), set(PACKAGE_VERSIONS) - set(wanted))
+    found, wrong = {}, []
+    for name, (module, attribute) in PACKAGE_VERSIONS.items():
+        with warnings.catch_warnings():
+            # e.g. markupsafe.__version__ is deprecated
+            warnings.simplefilter('ignore')
+            version = str(getattr(importlib.import_module(module), attribute))
+        version = version.split()[0]    # psycopg2: "2.9.13 (dt dec pq3 ext)"
+        found[name] = version
+        if version != wanted[name]:
+            wrong.append(f'{name} {version} (requirements.txt: {wanted[name]})')
+    expect(not wrong, wrong)
+    return found
+
+
+def check_sqlalchemy_roundtrip():
+    """SQLAlchemy (with its C extensions) creates, writes and reads a table (in-memory SQLite,
+    as the sql auth backend does on a file), through the ORM."""
+    from sqlalchemy import Column, Integer, String, create_engine, select
+    from sqlalchemy.orm import Session, declarative_base
+    from sqlalchemy.util import has_compiled_ext
+    base = declarative_base()
+
+    class Row(base):
+        __tablename__ = 'sp_harness_rows'
+        id = Column(Integer, primary_key=True)
+        name = Column(String(32))
+
+    engine = create_engine('sqlite://')
+    try:
+        base.metadata.create_all(engine)
+        with Session(engine) as session:
+            session.add_all([Row(name='alpha'), Row(name='beta')])
+            session.commit()
+            names = session.scalars(select(Row.name).order_by(Row.id)).all()
+    finally:
+        engine.dispose()
+    expect(names == ['alpha', 'beta'], names)
+    expect(has_compiled_ext(), 'SQLAlchemy without its compiled extensions')
+    return names
+
+
+def check_psycopg2_libpq():
+    """psycopg2 loads its libpq, which was built with SSL: a connection with sslmode=require to
+    a closed port must fail to connect, not with "SSL support is not compiled in"."""
+    import psycopg2
+    import psycopg2.extensions
+    version = psycopg2.extensions.libpq_version()
+    expect(version >= 170000, f'libpq {version}')
+    try:
+        psycopg2.connect(host='127.0.0.1', port=1, dbname='x', user='x', sslmode='require',
+                         connect_timeout=5).close()
+    except psycopg2.OperationalError as error:
+        message = str(error)
+    else:
+        raise AssertionError('connected to port 1')
+    expect('not compiled in' not in message, message)
+    return {'libpq': version, 'error': message.strip().splitlines()[0]}
+
+
+def check_tls_trust_store():
+    """requests/urllib3 use certifi's CA bundle; it loads into an SSL context."""
+    import ssl
+    import certifi
+    import requests
+    import urllib3
+    context = ssl.create_default_context(cafile=certifi.where())
+    count = context.cert_store_stats()['x509_ca']
+    expect(count > 100, f'{count} CA certificates')
+    with requests.Session() as session:
+        expect(session.get_adapter('https://example.com/') is not None, 'no https adapter')
+    urllib3.PoolManager(ssl_context=context).clear()
+    return {'ca_certificates': count}
+
+
+def check_greenlet_switch():
+    from greenlet import greenlet
+    worker = greenlet(lambda value: greenlet.getcurrent().parent.switch(value * 2) + 1)
+    first = worker.switch(21)
+    second = worker.switch(41)
+    expect((first, second, worker.dead) == (42, 42, True), (first, second, worker.dead))
+
+
+def check_docs_build():
+    """`sp docs` for a plugin: Sphinx creates a project for this plugin, generates its module
+    pages (apidoc) and builds them to HTML (autodoc), in a temporary directory."""
+    import shutil
+    import tempfile
+    from autodoc import SphinxProject
+    from path import Path
+    from paths import PLUGIN_PATH
+    temp = Path(tempfile.mkdtemp(prefix='sp_harness_docs_'))
+    try:
+        project = SphinxProject(PLUGIN_PATH / 'sp_harness', temp / 'sp_harness')
+        project.create('sp_harness')
+        project.generate_project_files()
+        project.build()
+        build = project.project_build_dir
+        page = build / 'sp_harness.sp_harness.html'
+        expect((build / 'index.html').is_file(), f'no index.html in {build.listdir()}')
+        expect(page.is_file(), f'no {page.name} in {build.listdir()}')
+        html = page.read_text(encoding='utf-8')
+        expect('check_docs_build' in html and 'Sphinx creates a project' in html,
+               'autodoc did not document this module')
+        return f'{len(build.files("*.html"))} pages'
+    finally:
+        shutil.rmtree(temp, ignore_errors=True)
 
 
 _entity_outputs = []
@@ -1237,6 +1383,8 @@ def finish():
     if PLAYER_FOR_CLIENT_COMMAND:
         check('commands.client_command', check_client_command)
     check('events.custom_event', check_custom_events)
+    # last: Sphinx is a large import and sets up its own logging and locale
+    check('docs.build_plugin', check_docs_build)
     if SMOKE_EXPECTED:
         check('entities.smoke_grenade_detonate_event', check_smoke_detonate)
     RESULTS['finished'] = True
