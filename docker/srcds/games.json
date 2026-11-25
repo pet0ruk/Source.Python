@@ -12,7 +12,9 @@
     "version_app_id": 240,
     "game_dir": "cstrike",
     "sp_engine": "orangebox",
-    "map": "de_dust2"
+    "map": "de_dust2",
+    "x86_64": true,
+    "x86_64_launcher": "tf2"
   },
   "dods": {
     "app_id": 232290,

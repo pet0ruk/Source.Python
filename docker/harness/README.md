@@ -65,9 +65,13 @@ the moment.
 
 `ARCH=x86_64` runs the game's 64-bit server (`srcds_run_64`, `bin/linux64`) with a 64-bit build
 (`ARCH=x86_64 docker/build/build.sh`), for the games marked `"x86_64": true` in
-`docker/srcds/games.json` (TF2 so far; CS:S, DoD:S and HL2DM ship the 64-bit engine but no 64-bit
-launcher). The test image then also gets the 64-bit `libcurl-gnutls` the engine needs, and the
-vtable check reads the 64-bit `server_srv.so`. The CI job is `test-x86_64`.
+`docker/srcds/games.json`. The test image then also gets the 64-bit `libcurl-gnutls` the engine
+needs, and the vtable check reads the 64-bit `server_srv.so`. The CI job is `test-x86_64`.
+
+TF2 ships a 64-bit launcher. CS:S, DoD:S and HL2DM ship the 64-bit engine and server but no
+64-bit launcher (Valve's Source-1-Games issue 7057); for them (`"x86_64_launcher": "tf2"`) the
+harness copies TF2's `srcds_run_64`, `srcds_linux64` and `bin/linux64/libsteam_api.so` into the
+server, as a server operator would have to.
 
 ```bash
 ARCH=x86_64 docker/build/build.sh tf2 out/tf2-x86_64

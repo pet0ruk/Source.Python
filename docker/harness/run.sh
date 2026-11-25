@@ -9,7 +9,9 @@
 #
 # Env:
 #   ARCH            x86 (default) or x86_64: run the game's 64-bit server (srcds_run_64) with a
-#                   64-bit Source.Python build
+#                   64-bit Source.Python build. For a game whose 64-bit server has no launcher
+#                   (games.json: x86_64_launcher, e.g. CS:S), srcds_run_64, srcds_linux64 and
+#                   bin/linux64/libsteam_api.so are taken from that game's image (TF2's).
 #   SRCDS_IMAGE     image repository (default ghcr.io/pet0ruk/srcds); the tag is <game>
 #   GAMES_JSON      per-game settings (default docker/srcds/games.json), e.g. for a game
 #                   without a published image
@@ -55,7 +57,19 @@ docker build -q -f "$HERE/Dockerfile" --build-arg BASE="$BASE" \
     --build-arg X86_64="$( [ "$ARCH" = x86_64 ] && echo 1 || true )" -t "$IMAGE" "$HERE" >/dev/null
 
 echo ">> staging Source.Python from $SRC into $OUT"
-rm -rf "$OUT"; mkdir -p "$OUT/sp"
+rm -rf "$OUT"; mkdir -p "$OUT/sp" "$OUT/launcher"
+LAUNCHER_GAME=$( [ "$ARCH" = x86_64 ] && jq -r --arg g "$GAME" '.[$g].x86_64_launcher // empty' "$GAMES_JSON" || true )
+if [ -n "$LAUNCHER_GAME" ]; then
+    # CS:S, DoD:S and HL2DM ship a 64-bit engine and server but no 64-bit launcher
+    echo ">> 64-bit launcher from $SRCDS_IMAGE:$LAUNCHER_GAME"
+    [ "${PULL:-1}" = 0 ] || docker pull -q "$SRCDS_IMAGE:$LAUNCHER_GAME" >/dev/null
+    cid=$(docker create "$SRCDS_IMAGE:$LAUNCHER_GAME")
+    mkdir -p "$OUT/launcher/bin/linux64"
+    for f in srcds_run_64 srcds_linux64 bin/linux64/libsteam_api.so; do
+        docker cp -q "$cid:/srv/srcds/$f" "$OUT/launcher/$f"
+    done
+    docker rm "$cid" >/dev/null
+fi
 if [ -d "$SRC" ]; then
     for d in addons cfg logs resource sound; do
         [ -d "$SRC/$d" ] && cp -a "$SRC/$d" "$OUT/sp/"
@@ -106,11 +120,12 @@ echo ">> running $GAME_DIR ($ARCH) on $MAP (timeout ${TIMEOUT}s)"
 # with ENOSYS, and 32-bit glibc and srcds create every socket through it, so the server can't
 # open its port ("NET_OpenSocket: socket failed: Function not implemented").
 docker run --rm --name "sp-harness-$GAME-$$" --security-opt seccomp=unconfined \
-    -v "$OUT/sp:/sp:ro" -v "$OUT:/out" \
+    -v "$OUT/sp:/sp:ro" -v "$OUT/launcher:/launcher:ro" -v "$OUT:/out" \
     -e GAME_DIR="$GAME_DIR" -e MAP="$MAP" -e TIMEOUT="$TIMEOUT" -e OWNER="$(id -u):$(id -g)" \
     -e SRCDS_RUN="$SRCDS_RUN" -e SRCDS_BINARY="$SRCDS_BINARY" \
     --entrypoint bash "$IMAGE" -c '
         cp -a /sp/. "/srv/srcds/$GAME_DIR/"
+        cp -a /launcher/. /srv/srcds/
         cd /srv/srcds
         timeout -k 10 "$TIMEOUT" "./$SRCDS_RUN" -binary /usr/local/bin/srcds-gdb \
             -game "$GAME_DIR" -condebug -norestart \

@@ -35,6 +35,7 @@ from entities.props import SendPropType
 #   Memory
 from memory import Convention
 from memory import DataType
+from memory import TYPE_SIZES
 from memory import get_object_pointer
 from memory import make_object
 from memory.helpers import Key
@@ -562,9 +563,11 @@ class _ServerClasses(TypeManager):
             """Retrieve the InputFunction instance."""
             func = desc.function
 
-            # Handle virtual inputs on Linux
+            # Handle virtual inputs on Linux (the member function pointer is
+            # 1 + the byte offset of the function in the vtable)
             if PLATFORM == 'linux' and func.address & 1:
-                func = pointer.get_virtual_func((func.address - 1) // 4)
+                func = pointer.get_virtual_func(
+                    (func.address - 1) // TYPE_SIZES['POINTER'])
 
             # TODO:
             # Don't use make_function(), but use input_function directly. It's
