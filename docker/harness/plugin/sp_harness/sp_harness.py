@@ -467,7 +467,6 @@ PACKAGE_VERSIONS = {
     'greenlet': ('greenlet', '__version__'),
     'idna': ('idna', '__version__'),
     'Jinja2': ('jinja2', '__version__'),
-    'MarkupSafe': ('markupsafe', '__version__'),
     'mutagen': ('mutagen', 'version_string'),
     'packaging': ('packaging', '__version__'),
     'psycopg2': ('psycopg2', '__version__'),
@@ -493,7 +492,6 @@ def check_package_versions():
     found, wrong = {}, []
     for name, (module, attribute) in PACKAGE_VERSIONS.items():
         with warnings.catch_warnings():
-            # e.g. markupsafe.__version__ is deprecated
             warnings.simplefilter('ignore')
             version = str(getattr(importlib.import_module(module), attribute))
         version = version.split()[0]    # psycopg2: "2.9.13 (dt dec pq3 ext)"
@@ -574,25 +572,41 @@ def check_greenlet_switch():
 
 def check_docs_build():
     """`sp docs` for a plugin: Sphinx creates a project for this plugin, generates its module
-    pages (apidoc) and builds them to HTML (autodoc), in a temporary directory."""
+    pages (apidoc) and builds them to HTML (autodoc), in a temporary directory. The plugin's
+    module (sp_harness.sp_harness, in a directory without __init__.py) gets its own page with
+    its docstrings."""
+    import contextlib
+    import io
     import shutil
     import tempfile
     from autodoc import SphinxProject
     from path import Path
     from paths import PLUGIN_PATH
     temp = Path(tempfile.mkdtemp(prefix='sp_harness_docs_'))
+    output = io.StringIO()
+
+    def files(directory):
+        return sorted(str(item.name) for item in directory.iterdir()) if directory.is_dir() else None
+
+    def stage(done, what):
+        expect(done, f'{what}; Sphinx output: ...{output.getvalue()[-1500:]}')
+
     try:
         project = SphinxProject(PLUGIN_PATH / 'sp_harness', temp / 'sp_harness')
-        project.create('sp_harness')
-        project.generate_project_files()
-        project.build()
+        with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
+            project.create('sp_harness')
+            stage((project.project_source_dir / 'conf.py').is_file(),
+                  f'create: no conf.py in {files(project.project_dir)}')
+            project.generate_project_files()
+            stage((project.project_source_dir / 'sp_harness.sp_harness.rst').is_file(),
+                  f'generate: {files(project.project_source_dir)}')
+            project.build()
         build = project.project_build_dir
         page = build / 'sp_harness.sp_harness.html'
-        expect((build / 'index.html').is_file(), f'no index.html in {build.listdir()}')
-        expect(page.is_file(), f'no {page.name} in {build.listdir()}')
+        stage((build / 'index.html').is_file() and page.is_file(), f'build: {files(build)}')
         html = page.read_text(encoding='utf-8')
-        expect('check_docs_build' in html and 'Sphinx creates a project' in html,
-               'autodoc did not document this module')
+        stage('check_docs_build' in html and 'Sphinx creates a project' in html,
+              'autodoc did not document the plugin module')
         return f'{len(build.files("*.html"))} pages'
     finally:
         shutil.rmtree(temp, ignore_errors=True)
