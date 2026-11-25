@@ -374,6 +374,8 @@ def phase_static():
     check('memory.hook_refused', check_hook_refused)
     check('memory.custom_convention', check_custom_convention)
     check('memory.string_pointers', check_string_pointers)
+    check('memory.platform_value', check_platform_value)
+    check('weapons.scripts', check_weapon_scripts)
     check('update.stage2', check_update_stage2)
     check('update.version_order', check_version_order)
     check('update.select_release', check_select_release)
@@ -494,8 +496,59 @@ def _effective_entity_gamedata():
 
 
 def _platform_value(data, key, default=None):
-    """A gamedata value the way Source.Python reads it: <key>_<platform> first, then <key>."""
-    return data.get(f'{key}_{PLATFORM}', data.get(key, default))
+    """A gamedata value the way Source.Python reads it: <key>_<platform>_x86_64 first on 64-bit
+    servers, then <key>_<platform>, then <key>."""
+    from memory.helpers import get_platform_value
+    return get_platform_value(data, key, default)
+
+
+def check_platform_value():
+    """memory.helpers.get_platform_value: the 64-bit key wins only on a 64-bit server."""
+    from memory.helpers import get_platform_value
+    x86_64 = sys.maxsize > 2 ** 32
+    data = {'offset': 1, f'offset_{PLATFORM}': 2, f'offset_{PLATFORM}_x86_64': 3}
+    expect(get_platform_value(data, 'offset') == (3 if x86_64 else 2), data)
+    expect(get_platform_value({'offset': 1}, 'offset') == 1, 'shared key')
+    expect(get_platform_value({}, 'offset', 4) == 4, 'default')
+    return 'x86_64' if x86_64 else 'x86'
+
+
+def check_weapon_scripts():
+    """weapons.scripts: the WeaponInfo attributes read what the game parsed from its weapon
+    scripts (wrong gamedata offsets read neighbouring fields: other strings, garbage ints)."""
+    if SOURCE_ENGINE != 'orangebox':
+        raise Skip('WeaponInfo layout is only checked for orangebox games')
+    from weapons.scripts import weapon_scripts
+    infos = list(weapon_scripts)
+    expect(len(infos) >= 5, f'only {len(infos)} weapon scripts')
+    names = [info.class_name for info in infos]
+    expect(all(name and name.isprintable() for name in names), names)
+    expect(weapon_scripts[names[0]].class_name == names[0], 'lookup by class name')
+    expect(all(info.is_script_parsed for info in infos), 'unparsed scripts')
+    models = [(info.view_model, info.world_model) for info in infos if info.world_model]
+    expect(models, 'no world models')
+    expect(all(model.lower().endswith('.mdl') for pair in models for model in pair if model),
+           models)
+    expect(any(view != world for view, world in models), 'view model == world model')
+    expect(all(-1 <= info.maximum_primary_clip < 1000 for info in infos),
+           [info.maximum_primary_clip for info in infos])
+    expect(all(0 <= info.slot_index < 16 for info in infos), [info.slot_index for info in infos])
+    # CAmmoDef::Index(): -1 for no (or an unknown) ammo, otherwise 1 or more
+    ammo = [(info.primary_ammo_name, info.primary_ammo_type) for info in infos]
+    expect(all(kind == -1 for name, kind in ammo if not name), ammo)
+    expect(all(-1 <= kind < 256 for name, kind in ammo), ammo)
+    expect(any(kind >= 1 for name, kind in ammo), ammo)
+    expect(all(-1 <= info.secondary_ammo_type < 256 for info in infos), 'secondary ammo')
+    expect(any(info.single_sound for info in infos), 'no single_sound')
+    # The CHudTexture pointers are only set by the client; FileWeaponInfo_t's constructor
+    # zeroes all of them but iconSmall (small_icon)
+    icons = ('active_icon', 'inactive_icon', 'primary_ammo_icon', 'secondary_ammo_icon',
+             'crosshair_icon', 'autoaim_icon', 'zoomed_crosshair_icon', 'zommed_autoaim_icon')
+    expect(all(getattr(getattr(info, icon), 'address', 0) == 0
+               for info in infos for icon in icons), 'icons set')
+    return {'scripts': len(infos),
+            'melee': sum(info.is_melee for info in infos),
+            'right_handed': sum(info.is_built_right_handed for info in infos)}
 
 
 def check_gamedata_functions():

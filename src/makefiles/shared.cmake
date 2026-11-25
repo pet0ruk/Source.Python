@@ -24,6 +24,11 @@ If(SP_ARCH STREQUAL "x86_64")
     If(NOT BRANCH IN_LIST SP_X86_64_BRANCHES)
         Message(FATAL_ERROR "SP_ARCH=x86_64: ${BRANCH} has no 64-bit server (64-bit builds: ${SP_X86_64_BRANCHES})")
     EndIf()
+    If(WIN32)
+        # Not yet: the Windows build still links the SDK's 32-bit libraries, and Source.Python
+        # keeps addresses in unsigned long, which is 32 bits on 64-bit Windows.
+        Message(FATAL_ERROR "SP_ARCH=x86_64 is only supported on Linux so far")
+    EndIf()
     Set(SP_X86_64 TRUE)
     # The SDK's 64-bit build (platform.h, ...)
     Add_Definitions(-DX64BITS -DPLATFORM_64BITS)

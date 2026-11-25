@@ -8,6 +8,8 @@
 # Python
 #   Binascii
 import binascii
+#   Sys
+import sys
 
 # Source.Python
 #   Core
@@ -30,8 +32,20 @@ __all__ = ('Array',
            'MemberFunction',
            'NO_DEFAULT',
            'Type',
+           'get_platform_value',
            'parse_data',
            )
+
+
+# =============================================================================
+# >> GLOBAL VARIABLES
+# =============================================================================
+# Key suffixes tried, most specific first. Servers running a 64-bit build
+# (x86_64) first try e.g. "offset_linux_x86_64", for data whose value differs
+# from the 32-bit one (structure offsets that follow a pointer).
+_KEY_SUFFIXES = ('_' + PLATFORM, '')
+if sys.maxsize > 2 ** 32:
+    _KEY_SUFFIXES = ('_' + PLATFORM + '_x86_64',) + _KEY_SUFFIXES
 
 
 # =============================================================================
@@ -348,6 +362,26 @@ class MemberFunction(Function):
 # =============================================================================
 # >> FUNCTIONS
 # =============================================================================
+def get_platform_value(data, key, default=None):
+    """Return the most specific value of a key for this server.
+
+    On 64-bit servers ``<key>_<platform>_x86_64`` is tried first (e.g.
+    ``offset_linux_x86_64``), then ``<key>_<platform>`` (e.g.
+    ``offset_linux``), then ``<key>``.
+
+    :param dict data: The data to look the key up in.
+    :param str key: The name of the key.
+    :param default: The value to return if none of the keys exist.
+    """
+    for suffix in _KEY_SUFFIXES:
+        try:
+            return data[key + suffix]
+        except KeyError:
+            continue
+
+    return default
+
+
 def parse_data(manager, raw_data, keys):
     """Parse the data dictionary.
 
@@ -369,7 +403,9 @@ def parse_data(manager, raw_data, keys):
     Information about data that comes from a file:
 
     You can specialize every key by adding ''_windows'' (for Windows) or
-    ''_linux'' (for Linux) to the end a key.
+    ''_linux'' (for Linux) to the end a key. On 64-bit servers, a key ending
+    in ''_windows_x86_64'' or ''_linux_x86_64'' is used before those (see
+    get_platform_value()).
 
     For example:
     If you are using a signature on Windows, but a symbol on Linux, you have
@@ -390,9 +426,9 @@ def parse_data(manager, raw_data, keys):
     for name, data in raw_data.items():
         temp_data = []
         for key, converter, default in keys:
-            # Get the OS specific key. If that fails, fall back to the shared
-            # key. If that fails too, use the default value
-            value = data.get(key + '_' + PLATFORM, data.get(key, default))
+            # Get the architecture or OS specific key. If that fails, fall
+            # back to the shared key. If that fails too, use the default value
+            value = get_platform_value(data, key, default)
 
             # If the value is NO_DEFAULT, the key is obviously missing
             if value is NO_DEFAULT:

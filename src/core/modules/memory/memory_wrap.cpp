@@ -919,7 +919,7 @@ void export_calling_convention(scope _memory)
 						args("self", "arg_types", "return_type", "alignment", "default_convention")
 					)
 				),
-				("arg_types", "return_type", arg("alignment")=4, arg("default_convention")=CONV_CUSTOM)
+				("arg_types", "return_type", arg("alignment")=(int) sizeof(void*), arg("default_convention")=CONV_CUSTOM)
 			),
 			"Initialize the calling convention.\n"
 			"\n"
@@ -1058,7 +1058,7 @@ void export_functions(scope _memory)
 
 	def("get_data_type_size",
 		&GetDataTypeSize,
-		("data_type", arg("alignment")=4),
+		("data_type", arg("alignment")=(int) sizeof(void*)),
 		"Return the size of the data type after applying alignment.\n"
 		"\n"
 		":param DataType data_type: The data type you would like to get the size of.\n"

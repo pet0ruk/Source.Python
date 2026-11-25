@@ -39,6 +39,7 @@ from memory import get_object_pointer
 from memory import make_object
 from memory.helpers import Key
 from memory.helpers import Type
+from memory.helpers import get_platform_value
 from memory.manager import CustomType
 from memory.manager import TypeManager
 #   Paths
@@ -342,11 +343,11 @@ class _ServerClasses(TypeManager):
             # Resolve the offset of this attribute
             offset = Key.as_int(
                 self,
-                data.get('offset_' + PLATFORM, data.get('offset', 0))
+                get_platform_value(data, 'offset', 0)
             )
 
             # Resolve the base offset of this attribute
-            base = data.get('base_' + PLATFORM, data.get('base'))
+            base = get_platform_value(data, 'base')
             try:
                 offset += instance.properties[base].offset
             except KeyError:

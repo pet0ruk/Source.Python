@@ -117,3 +117,19 @@ This example will cover calling a virtual function which requires two non atomic
 
         # After the function modified the vectors just return them.
         return (velocity, angle)
+
+
+64-bit servers
+--------------
+
+On a 64-bit (x86-64) server there is one calling convention per platform (System V on Linux,
+Microsoft x64 on Windows), so :attr:`memory.Convention.CDECL`, ``THISCALL``, ``STDCALL`` and
+``FASTCALL`` all use it, and the alignment given to a function is not used: code written for
+32-bit servers works unchanged. :class:`memory.CallingConvention` and
+:func:`memory.get_data_type_size` default to the pointer size (4 or 8) as alignment.
+
+Offsets into structures usually differ, because pointers are 8 bytes. In gamedata files, a key
+ending in ``_linux_x86_64`` or ``_windows_x86_64`` (e.g. ``offset_linux_x86_64``) is used on
+64-bit servers before ``_linux`` / ``_windows`` and the plain key (see
+:func:`memory.helpers.get_platform_value`). Virtual function indexes have been the same on
+both in the games checked so far.

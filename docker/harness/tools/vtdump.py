@@ -56,7 +56,13 @@ class Elf:
                 for off in range(h[4], h[4] + h[5], 24):
                     r_off, r_info, r_addend = struct.unpack_from('<QQq', d, off)
                     t, s = r_info & 0xFFFFFFFF, r_info >> 32
-                    self.relocs[r_off] = (t, symtab[s][0] if s else None, r_addend)
+                    name = None
+                    if 0 < s < len(symtab):
+                        name, value = symtab[s][:2]
+                        if not name:                # section symbol: addend is relative to it
+                            r_addend += value
+                            name = None
+                    self.relocs[r_off] = (t, name, r_addend)
 
     def _symbols(self, idx):
         h = self.sh[idx]
