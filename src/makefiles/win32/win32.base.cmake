@@ -51,6 +51,15 @@ Set(CMAKE_CXX_FLAGS_RELEASE "/O2 /Ob2 /DNDEBUG /D_NDEBUG /wd4005 /MP")
 set_property(TARGET core source-python PROPERTY
   MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
+# ------------------------------------------------------------------
+# x64: the SDK's tier1/strtools.h defines a macro str_size (unsigned int on
+# _WIN64), which breaks Boost.Range's str_size() when Boost's header comes
+# after it; that header is included first.
+# ------------------------------------------------------------------
+If(SP_X86_64)
+    Target_Compile_Options(core PRIVATE /FIboost/range/detail/implementation_help.hpp)
+EndIf()
+
 #Set_Target_Properties(core PROPERTIES
 #    LINK_FLAGS_RELEASE "/NODEFAULTLIB:LIBC.lib /NODEFAULTLIB:LIBCMT.lib /NODEFAULTLIB:LIBCPMT.lib"
 #)
