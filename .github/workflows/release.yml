@@ -6,9 +6,11 @@
 #   1. builds every game for Linux and Windows from the tag, with the version stamped into
 #      core/version.py (docker/release/stamp-version.sh)
 #   2. merges each game's two builds into source-python-<game>-<version>-py<series>.zip
-#      (docker/release/package.py)
+#      (docker/release/package.py); the games with 64-bit servers (SP_X86_64_BRANCHES in
+#      src/makefiles/shared.cmake) also get a 64-bit build of each, merged into
+#      source-python-<game>-<version>-py<series>-x64.zip
 #   3. runs the tests (docker/harness) on the zips of the games in docker/srcds/games.json, on
-#      both platforms
+#      both platforms (64-bit: the games marked x86_64 / x86_64_windows there)
 #   4. uploads the zips and SHA256SUMS to the release and, for a version without a pre-release
 #      part, makes it a full release and the latest one: from then on, sp update installs it.
 #
@@ -62,8 +64,9 @@ jobs:
       sha: ${{ steps.meta.outputs.sha }}
       epoch: ${{ steps.meta.outputs.epoch }}
       series: ${{ steps.meta.outputs.series }}
-      games: ${{ steps.meta.outputs.games }}
-      tested: ${{ steps.meta.outputs.tested }}
+      builds: ${{ steps.meta.outputs.builds }}
+      packages: ${{ steps.meta.outputs.packages }}
+      tests: ${{ steps.meta.outputs.tests }}
     steps:
       - uses: actions/checkout@v7 # v7.0.1
         with:
@@ -90,28 +93,38 @@ jobs:
           series=$(sed -n 's/^Set(SP_PYTHON_RUNTIME_RELEASE *\([0-9]\+\.[0-9]\+\)\..*/\1/p' src/makefiles/python-runtime.cmake)
           [ -n "$series" ] || { echo "!! no Python series in python-runtime.cmake" >&2; exit 1; }
           echo "series=$series" >> "$GITHUB_OUTPUT"
-          # every build branch except gmod (not released); the tests cover those in games.json
-          echo "games=$(ls src/makefiles/branch/*.cmake | xargs -n1 basename | sed 's/\.cmake$//' \
-            | grep -vx gmod | jq -Rcs 'split("\n") | map(select(. != ""))')" >> "$GITHUB_OUTPUT"
-          echo "tested=$(jq -c keys_unsorted docker/srcds/games.json)" >> "$GITHUB_OUTPUT"
+          # every build branch except gmod (not released), 32-bit, and 64-bit for those in
+          # SP_X86_64_BRANCHES; the tests cover the games in games.json
+          games=$(ls src/makefiles/branch/*.cmake | xargs -n1 basename | sed 's/\.cmake$//' \
+            | grep -vx gmod | jq -Rcs 'split("\n") | map(select(. != ""))')
+          x64=$(sed -n 's/^Set(SP_X86_64_BRANCHES \(.*\))/\1/p' src/makefiles/shared.cmake | jq -Rc 'split(" ")')
+          [ "$x64" != '[""]' ] && [ -n "$x64" ] || { echo "!! no SP_X86_64_BRANCHES in shared.cmake" >&2; exit 1; }
+          packages=$(jq -cn --argjson g "$games" --argjson x "$x64" \
+            '[$g[] | {game: ., arch: "x86"}] + [$g[] | select(. as $b | $x | index($b)) | {game: ., arch: "x86_64"}]')
+          echo "packages=$packages" >> "$GITHUB_OUTPUT"
+          echo "builds=$(jq -c '[.[] | . + {platform: "linux"}, . + {platform: "windows"}]' <<< "$packages")" >> "$GITHUB_OUTPUT"
+          echo "tests=$(jq -c '[to_entries[] | {game: .key, arch: "x86", platform: ("linux", "windows")},
+              (select(.value.x86_64 == true) | {game: .key, arch: "x86_64", platform: "linux"}),
+              (select(.value.x86_64_windows == true) | {game: .key, arch: "x86_64", platform: "windows"})]' \
+              docker/srcds/games.json)" >> "$GITHUB_OUTPUT"
           cat "$GITHUB_OUTPUT"
 
   build:
     needs: meta
-    name: build (${{ matrix.game }}, ${{ matrix.platform }})
+    name: build (${{ matrix.game }}, ${{ matrix.platform }}, ${{ matrix.arch }})
     runs-on: ${{ matrix.platform == 'windows' && 'windows-latest' || 'ubuntu-latest' }}
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        game: ${{ fromJSON(needs.meta.outputs.games) }}
-        platform: [linux, windows]
+        include: ${{ fromJSON(needs.meta.outputs.builds) }}
     defaults:
       run:
         shell: bash
     env:
       GAME: ${{ matrix.game }}
       PLATFORM: ${{ matrix.platform }}
+      ARCH: ${{ matrix.arch }}
     steps:
       - uses: actions/checkout@v7 # v7.0.1
         with:
@@ -123,7 +136,7 @@ jobs:
       - name: Stamp the version
         run: docker/release/stamp-version.sh "${{ needs.meta.outputs.version }}" "${{ needs.meta.outputs.sha }}"
 
-      - name: Build Source.Python (${{ matrix.game }}, ${{ matrix.platform }})
+      - name: Build Source.Python (${{ matrix.game }}, ${{ matrix.platform }}, ${{ matrix.arch }})
         run: |
           if [ "$PLATFORM" = windows ]; then
             docker/build/build-windows.sh "$GAME" "$OUT/build"
@@ -134,7 +147,7 @@ jobs:
 
       - uses: actions/upload-artifact@v7 # v7.0.2
         with:
-          name: build-${{ matrix.game }}-${{ matrix.platform }}
+          name: build-${{ matrix.game }}-${{ matrix.arch }}-${{ matrix.platform }}
           path: ${{ runner.temp }}/sp-out/release.tar
           retention-days: 7
 
@@ -142,21 +155,22 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7 # v7.0.2
         with:
-          name: build-log-${{ matrix.game }}-${{ matrix.platform }}
+          name: build-log-${{ matrix.game }}-${{ matrix.arch }}-${{ matrix.platform }}
           if-no-files-found: ignore
           path: ${{ runner.temp }}/sp-out/build/build.log
 
   package:
     needs: [meta, build]
-    name: package (${{ matrix.game }})
+    name: package (${{ matrix.game }}, ${{ matrix.arch }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        game: ${{ fromJSON(needs.meta.outputs.games) }}
+        include: ${{ fromJSON(needs.meta.outputs.packages) }}
     env:
       GAME: ${{ matrix.game }}
-      ZIP: source-python-${{ matrix.game }}-${{ needs.meta.outputs.version }}-py${{ needs.meta.outputs.series }}.zip
+      ARCH: ${{ matrix.arch }}
+      ZIP: source-python-${{ matrix.game }}-${{ needs.meta.outputs.version }}-py${{ needs.meta.outputs.series }}${{ matrix.arch == 'x86_64' && '-x64' || '' }}.zip
     steps:
       - uses: actions/checkout@v7 # v7.0.1
         with:
@@ -164,7 +178,7 @@ jobs:
 
       - uses: actions/download-artifact@v7 # v7.0.0
         with:
-          pattern: build-${{ matrix.game }}-*
+          pattern: build-${{ matrix.game }}-${{ matrix.arch }}-*
           path: builds
 
       - name: Merge the Linux and Windows builds
@@ -173,7 +187,7 @@ jobs:
         run: |
           for platform in linux windows; do
             mkdir -p "trees/$platform"
-            tar -C "trees/$platform" -xf "builds/build-$GAME-$platform/release.tar"
+            tar -C "trees/$platform" -xf "builds/build-$GAME-$ARCH-$platform/release.tar"
             echo "$platform: hl2sdk $(cat "trees/$platform/hl2sdk.txt"), $(grep '^release=' "trees/$platform/python-runtime.txt")"
           done
           mkdir dist
@@ -181,27 +195,27 @@ jobs:
 
       - uses: actions/upload-artifact@v7 # v7.0.2
         with:
-          name: zip-${{ matrix.game }}
+          name: zip-${{ matrix.game }}-${{ matrix.arch }}
           path: dist/${{ env.ZIP }}
           retention-days: 7
 
   # The tests of sp-tests.yml, on the release zips.
   test:
     needs: [meta, package]
-    name: test (${{ matrix.game }}, ${{ matrix.platform }})
+    name: test (${{ matrix.game }}, ${{ matrix.platform }}, ${{ matrix.arch }})
     runs-on: ${{ matrix.platform == 'windows' && 'windows-latest' || 'ubuntu-latest' }}
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        game: ${{ fromJSON(needs.meta.outputs.tested) }}
-        platform: [linux, windows]
+        include: ${{ fromJSON(needs.meta.outputs.tests) }}
     defaults:
       run:
         shell: bash
     env:
       GAME: ${{ matrix.game }}
       PLATFORM: ${{ matrix.platform }}
+      ARCH: ${{ matrix.arch }}
     steps:
       - uses: actions/checkout@v7 # v7.0.1
         with:
@@ -212,7 +226,7 @@ jobs:
 
       - uses: actions/download-artifact@v7 # v7.0.0
         with:
-          name: zip-${{ matrix.game }}
+          name: zip-${{ matrix.game }}-${{ matrix.arch }}
           path: ${{ runner.temp }}/sp-out/zip
 
       - uses: docker/login-action@v4 # v4.8.0
@@ -222,7 +236,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Run tests on srcds:${{ matrix.game }} (${{ matrix.platform }})
+      - name: Run tests on srcds:${{ matrix.game }} (${{ matrix.platform }}, ${{ matrix.arch }})
         env:
           SRCDS_IMAGE: ghcr.io/${{ github.repository_owner }}/srcds
           CRASH_DUMPS: 1
@@ -239,7 +253,7 @@ jobs:
         if: always()
         run: |
           {
-            echo "### $GAME, $PLATFORM"
+            echo "### $GAME, $PLATFORM, $ARCH"
             echo '```text'
             sed -n '/^gamedata vtables/,$p' "$OUT/report.txt" 2>/dev/null || echo "no test report"
             echo '```'
@@ -249,7 +263,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7 # v7.0.2
         with:
-          name: test-${{ matrix.game }}-${{ matrix.platform }}
+          name: test-${{ matrix.game }}-${{ matrix.arch }}-${{ matrix.platform }}
           if-no-files-found: ignore
           path: |
             ${{ runner.temp }}/sp-out/report.txt
