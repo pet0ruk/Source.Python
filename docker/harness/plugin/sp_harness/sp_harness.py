@@ -348,6 +348,8 @@ def phase_static():
     check('runtime.python_version', lambda: sys.version.split()[0])
     check('runtime.platform', lambda: [expect(PLATFORM in ('linux', 'windows'), PLATFORM), PLATFORM][1])
     check('runtime.engine', lambda: (SOURCE_ENGINE, SOURCE_ENGINE_BRANCH, GAME_NAME))
+    if (GAME_PATH / 'addons' / 'metamod.vdf').is_file():
+        check('runtime.metamod_loaded', check_metamod_loaded)
     check('runtime.stdlib_native_modules', check_stdlib_native)
     check('runtime.soabi', lambda: sysconfig.get_config_var('SOABI'))
     check('runtime.site_packages_native', check_site_packages_native)
@@ -402,6 +404,14 @@ def phase_static():
     for command in GAME['setup']:
         queue_command_string(command)
     Delay(1, add_bots, (0,))
+
+
+def check_metamod_loaded():
+    """Metamod:Source is installed next to Source.Python (EXTRA_ADDONS): it must have loaded
+    too (its "meta" server command exists), so the other checks ran with it."""
+    from cvars import cvar
+    expect(cvar.find_command('meta') is not None, 'no "meta" command: Metamod:Source not loaded')
+    return 'meta'
 
 
 def check_stdlib_native():

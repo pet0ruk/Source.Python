@@ -21,6 +21,8 @@
 #   OVERLAY_REPO=1  copy this repository's tracked addons/cfg/resource/sound files over the
 #                   release, as in run.sh
 #   NO_UPDATE=1     don't stage an update for the loader to apply on start, as in run.sh
+#   EXTRA_ADDONS    a directory laid out like the game directory (e.g. Metamod:Source's
+#                   addons/), copied into the server as well, as in run.sh
 #   CRASH_DUMPS=1   have Windows Error Reporting write a minidump of srcds.exe if it crashes
 #                   (into <out>/dumps; sets HKLM registry values, so it needs admin rights: CI),
 #                   and analyse it with cdb.exe, if installed, into <out>/crash.txt
@@ -69,6 +71,7 @@ echo ">> installing Source.Python from $SRC into $G"
 mkdir -p "$OUT"
 rm -rf "$OUT/results.json" "$OUT/console.log" "$OUT/srcds_run.log" "$OUT/source-python-logs"
 rm -rf "$G/addons/source-python" "$G/addons/source-python.dll" "$G/addons/source-python.vdf" \
+       "$G/addons/metamod" "$G/addons/metamod.vdf" "$G/addons/metamod_x64.vdf" \
        "$G/logs/sp_harness.json" "$G/logs/source-python" "$G/console.log"
 if [ -d "$SRC" ]; then
     for d in addons cfg logs resource sound; do
@@ -82,6 +85,10 @@ if [ "${OVERLAY_REPO:-}" = 1 ]; then
     echo ">> overlaying working tree of $REPO"
     git -C "$REPO" ls-files -z addons cfg resource sound | (cd "$REPO" && tar -c --null -T -) \
         | tar -x -C "$G"
+fi
+if [ -n "${EXTRA_ADDONS:-}" ]; then
+    echo ">> adding $EXTRA_ADDONS"
+    cp -r "$EXTRA_ADDONS/." "$G/"
 fi
 [ -f "$G/addons/source-python/bin/core.dll" ] || { echo "no addons/source-python/bin/core.dll in $SRC" >&2; exit 2; }
 # the build must be for the server's architecture (PE machine 014c: x86, 8664: x64)
