@@ -40,6 +40,7 @@ check passed; skips and known issues don't fail a run. Needs Docker, `jq` and Py
 | Area | Checks |
 |---|---|
 | runtime | Python version, platform, engine constants, native stdlib modules (ssl, ctypes, sqlite3, lzma, bz2, uuid, ...), compiled site-packages (greenlet, psycopg2) |
+| packages | vendored and runtime package versions match `site-packages/requirements.txt`; SQLAlchemy ORM round trip on SQLite with its C extensions; psycopg2's libpq loads and has SSL; certifi's CA bundle loads for requests/urllib3; greenlet switches |
 | engine / entities | map, max clients, worldspawn, create/spawn/remove, `set_model`, `teleport` |
 | filters | `EntityIter` (networked), `BaseEntityIter` (server-only entities) |
 | memory | every `[function]` identifier for this platform in the effective gamedata resolves (`find_binary`; symbols and byte signatures), `make_function`, vtable read through `Pointer` matches the binary and the gamedata `teleport` slot (the last two need symbols: Linux only, not CS:GO), a `Callback` with BOOL arguments and return value (upstream #419) |
@@ -50,6 +51,7 @@ check passed; skips and known issues don't fail a run. Needs Docker, `jq` and Py
 | level change | `changelevel` to the same map: one `OnLevelEnd` and one `OnLevelInit` for that map, at least one `OnLevelShutdown` (some games call it twice) |
 | counts | entity pre/post hooks (`pre_think`, `post_think`, `run_command`, `on_take_damage`), `Event` and `PreEvent`, `OnTick`, `OnClientActive`, `OnConVarChanged`, `OnLevelShutdown`, `OnLevelInit`, `ServerCommand`; exactly one `Delay` and three `Repeat` calls |
 | events | `event['userid']`, `event.variables.get_int()` and `.as_dict()` agree with `event.get_int()` (upstream issue #536); a `CustomEvent` (loaded once from a `.res` file) fired before and after the level change arrives with its values |
+| docs | `sp docs` for a plugin: Sphinx creates a project for the harness plugin, generates its module pages and builds them to HTML (run last) |
 
 Where possible a check observes the effect through a different path than the one that caused
 it: the engine's own interfaces (`IPlayerInfo`, the server console, string tables) or engine

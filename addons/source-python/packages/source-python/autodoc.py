@@ -153,6 +153,13 @@ class SphinxProject(object):
             str(self.package_dir),  # Package to document
         ]
 
+        # A plugin directory (plugins/<name>/<name>.py) has no __init__.py.
+        # Without this, its modules are documented as top-level modules
+        # (<name> instead of <name>.<name>) and autodoc imports the namespace
+        # package instead, leaving the pages empty.
+        if not (self.package_dir / '__init__.py').is_file():
+            argv.insert(0, '--implicit-namespaces')
+
         try:
             main(argv)
         except:
