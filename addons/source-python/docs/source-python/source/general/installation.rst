@@ -24,6 +24,19 @@ Windows
 There are no special requirements.
 
 
+64-bit servers
+^^^^^^^^^^^^^^
+
+TF2, CS:S, DoD:S and HL2DM have 64-bit dedicated servers. A 64-bit server needs the 64-bit
+release (``source-python-<game>-<version>-py<series>-x64.zip``), a 32-bit one the release without
+``-x64``; ``sp update`` stays on the installed architecture. Plugins work the same on both.
+
+TF2's server starts 64-bit with ``srcds_run_64`` (Linux) or ``srcds_win64.exe`` (Windows). CS:S,
+DoD:S and HL2DM ship the 64-bit engine and game libraries but no 64-bit launcher; they start with
+TF2's (``srcds_run_64``, ``srcds_linux64`` and ``bin/linux64/libsteam_api.so`` on Linux,
+``srcds_win64.exe`` on Windows) copied into the server directory.
+
+
 Installation steps
 ------------------
 
