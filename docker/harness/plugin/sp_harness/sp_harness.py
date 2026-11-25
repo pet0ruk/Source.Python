@@ -676,10 +676,10 @@ def check_callback_bool():
 
 def check_hook_refused():
     """Hooking a function DynamicHooks can't patch safely (here one shorter than the hook's
-    jump: xor eax, eax; ret) raises ValueError and leaves the function unchanged, instead of
-    overwriting the code after it."""
+    jump, followed by another function: xor eax, eax; ret; xor eax, eax; inc eax; ret) raises
+    ValueError and leaves the function unchanged, instead of overwriting the code after it."""
     from memory import Convention, DataType, alloc
-    code = (0x31, 0xC0, 0xC3, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC)
+    code = (0x31, 0xC0, 0xC3, 0x31, 0xC0, 0xFF, 0xC0, 0xC3)
     pointer = alloc(len(code))
     for offset, byte in enumerate(code):
         pointer.set_uchar(byte, offset)
