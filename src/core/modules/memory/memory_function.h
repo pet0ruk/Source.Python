@@ -31,6 +31,7 @@
 // >> INCLUDES
 // ============================================================================
 // Memory
+#include <stdint.h>
 #include "memory_pointer.h"
 
 // DynamicHooks

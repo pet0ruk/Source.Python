@@ -30,6 +30,7 @@
 //-----------------------------------------------------------------------------
 // Includes.
 //-----------------------------------------------------------------------------
+#include <stdint.h>
 #include "boost/shared_ptr.hpp"
 #include "boost/python/str.hpp"
 using namespace boost::python;

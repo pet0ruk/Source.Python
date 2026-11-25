@@ -31,6 +31,7 @@
 // >> INCLUDES
 // ============================================================================
 // DynamicHooks
+#include <stdint.h>
 #include "convention.h"
 
 // Memory

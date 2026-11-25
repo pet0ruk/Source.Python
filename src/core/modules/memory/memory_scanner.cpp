@@ -96,7 +96,7 @@ CPointer* CBinaryFile::FindSignatureRaw(object oSignature)
 	return new CPointer();
 }
 
-void CBinaryFile::AddSignatureToCache(unsigned char* sigstr, int iLength, unsigned int ulAddr)
+void CBinaryFile::AddSignatureToCache(unsigned char* sigstr, int iLength, uintptr_t ulAddr)
 {
 	Signature_t sig_t = {new unsigned char[iLength+1], ulAddr};
 	strcpy((char*) sig_t.m_szSignature, (char*) sigstr);

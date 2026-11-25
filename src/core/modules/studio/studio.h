@@ -31,6 +31,7 @@
 // Includes.
 //-----------------------------------------------------------------------------
 // Source.Python
+#include <stdint.h>
 #include "modules/memory/memory_tools.h"
 #include "utilities/wrap_macros.h"
 #include "utilities/sp_util.h"

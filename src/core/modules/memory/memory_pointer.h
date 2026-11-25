@@ -31,6 +31,7 @@
 // >> INCLUDES
 // ============================================================================
 // Boost.Python
+#include <stdint.h>
 #include "boost/python.hpp"
 using namespace boost::python;
 

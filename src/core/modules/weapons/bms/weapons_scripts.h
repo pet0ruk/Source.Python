@@ -30,6 +30,7 @@
 //-----------------------------------------------------------------------------
 // Includes.
 //-----------------------------------------------------------------------------
+#include <stdint.h>
 #include "datamap.h"
 #include "game/shared/weapon_parse.h"
 #include "tier1/utldict.h"

@@ -82,8 +82,9 @@
   struct CallingConvention<R (CALLING_CONVENTION_CDECL *)(BOOST_PP_ENUM_PARAMS(NUM_ARGS, A) ...)>
     : boost::integral_constant<Convention_t, CONV_CDECL> {};
 
-  #ifdef _WIN32
-  // We only need to care about __stdcall on Windows
+  #if defined(_WIN32) && !defined(_WIN64)
+  // We only need to care about __stdcall on Windows (x64 has one convention: MSVC ignores
+  // __stdcall and __thiscall there, so these would be the cdecl ones again)
   template<typename R BOOST_PP_ENUM_TRAILING_PARAMS(NUM_ARGS, typename A)>
   struct CallingConvention<R (__stdcall *)(BOOST_PP_ENUM_PARAMS(NUM_ARGS, A))>
     : boost::integral_constant<Convention_t, CONV_STDCALL> {};
@@ -107,8 +108,8 @@
   struct CallingConvention<R (CALLING_CONVENTION_CDECL T::*)(BOOST_PP_ENUM_PARAMS(NUM_ARGS, A) ...) const>
     : boost::integral_constant<Convention_t, CONV_CDECL> {};
 
-  #ifdef _WIN32
-  // We only need to care about __thiscall and __stdcall on Windows
+  #if defined(_WIN32) && !defined(_WIN64)
+  // We only need to care about __thiscall and __stdcall on 32-bit Windows
   template<typename T, typename R BOOST_PP_ENUM_TRAILING_PARAMS(NUM_ARGS, typename A)>
   struct CallingConvention<R (__thiscall T::*)(BOOST_PP_ENUM_PARAMS(NUM_ARGS, A))>
     : boost::integral_constant<Convention_t, CONV_THISCALL> {};

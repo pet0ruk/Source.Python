@@ -30,6 +30,7 @@
 //-----------------------------------------------------------------------------
 // Includes
 //-----------------------------------------------------------------------------
+#include <stdint.h>
 #include <list>
 #include "export_main.h"
 #include "memory_pointer.h"
@@ -56,7 +57,7 @@ public:
 	dict GetSymbols();
 
 private:
-	void AddSignatureToCache(unsigned char* sigstr, int iLength, unsigned int ulAddr);
+	void AddSignatureToCache(unsigned char* sigstr, int iLength, uintptr_t ulAddr);
 
 	bool SearchSigInCache(unsigned char* sigstr, CPointer*& result);
 	bool SearchSigInBinary(object oSignature, int iLength, unsigned char* sigstr, CPointer*& result);

@@ -55,6 +55,7 @@
 // >> INCLUDES
 // ============================================================================
 // Memory
+#include <stdint.h>
 #include "memory_function_info.h"
 #include "memory_pointer.h"
 #include "memory_tools.h"

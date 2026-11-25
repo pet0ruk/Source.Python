@@ -30,6 +30,7 @@
 //-----------------------------------------------------------------------------
 // Includes.
 //-----------------------------------------------------------------------------
+#include <stdint.h>
 #include "entities_entity.h"
 #include ENGINE_INCLUDE_PATH(entities_datamaps_wrap.h)
 
