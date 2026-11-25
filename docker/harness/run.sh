@@ -58,7 +58,7 @@ docker build -q -f "$HERE/Dockerfile" --build-arg BASE="$BASE" \
 
 echo ">> staging Source.Python from $SRC into $OUT"
 rm -rf "$OUT"; mkdir -p "$OUT/sp" "$OUT/launcher"
-LAUNCHER_GAME=$( [ "$ARCH" = x86_64 ] && cfg x86_64_launcher 2>/dev/null || true )
+LAUNCHER_GAME=$( [ "$ARCH" = x86_64 ] && jq -r --arg g "$GAME" '.[$g].x86_64_launcher // empty' "$GAMES_JSON" || true )
 if [ -n "$LAUNCHER_GAME" ]; then
     # CS:S, DoD:S and HL2DM ship a 64-bit engine and server but no 64-bit launcher
     echo ">> 64-bit launcher from $SRCDS_IMAGE:$LAUNCHER_GAME"
