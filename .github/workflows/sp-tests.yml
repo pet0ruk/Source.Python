@@ -2,7 +2,7 @@
 # docker/harness on the srcds:<game> test images (see srcds-images.yml), one job per game and
 # platform (Linux: srcds:<game>; Windows: the files of srcds:<game>-windows), and a 64-bit build
 # on the 64-bit server of each game that has one (games.json: x86_64 for Linux, x86_64_windows
-# for Windows).
+# for Windows). Run by hand with "metamod", Metamod:Source is installed next to Source.Python.
 name: Source.Python tests
 
 on:
@@ -21,13 +21,17 @@ on:
         type: choice
         default: all
         options: [all, linux, windows]
+      metamod:
+        description: Install Metamod:Source (latest 1.12 build) next to Source.Python
+        type: boolean
+        default: false
 
 permissions:
   contents: read
   packages: read
 
 concurrency:
-  group: sp-tests-${{ github.event.pull_request.number || github.ref }}-${{ inputs.game || 'all' }}-${{ inputs.platform || 'all' }}
+  group: sp-tests-${{ github.event.pull_request.number || github.ref }}-${{ inputs.game || 'all' }}-${{ inputs.platform || 'all' }}-${{ inputs.metamod && 'metamod' || 'plain' }}
   cancel-in-progress: true
 
 jobs:
@@ -83,6 +87,12 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Metamod:Source
+        if: inputs.metamod
+        run: |
+          docker/harness/tools/get_metamod.sh linux "$OUT/metamod"
+          echo "EXTRA_ADDONS=$OUT/metamod" >> "$GITHUB_ENV"
 
       - name: Run tests on srcds:${{ matrix.game }}
         env:
@@ -148,6 +158,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Metamod:Source
+        if: inputs.metamod
+        run: |
+          docker/harness/tools/get_metamod.sh linux "$OUT/metamod"
+          echo "EXTRA_ADDONS=$OUT/metamod" >> "$GITHUB_ENV"
+
       - name: Run tests on srcds:${{ matrix.game }} (64-bit server)
         env:
           SRCDS_IMAGE: ghcr.io/${{ github.repository_owner }}/srcds
@@ -208,6 +224,12 @@ jobs:
 
       - name: Build Source.Python (${{ matrix.game }}, Windows)
         run: docker/build/build-windows.sh "$GAME" "$OUT/build"
+
+      - name: Metamod:Source
+        if: inputs.metamod
+        run: |
+          docker/harness/tools/get_metamod.sh windows "$OUT/metamod"
+          echo "EXTRA_ADDONS=$OUT/metamod" >> "$GITHUB_ENV"
 
       - name: Run tests on srcds:${{ matrix.game }}-windows
         env:
@@ -271,6 +293,12 @@ jobs:
 
       - name: Build Source.Python (${{ matrix.game }}, Windows, x86_64)
         run: docker/build/build-windows.sh "$GAME" "$OUT/build"
+
+      - name: Metamod:Source
+        if: inputs.metamod
+        run: |
+          docker/harness/tools/get_metamod.sh windows "$OUT/metamod"
+          echo "EXTRA_ADDONS=$OUT/metamod" >> "$GITHUB_ENV"
 
       - name: Run tests on srcds:${{ matrix.game }}-windows
         env:
