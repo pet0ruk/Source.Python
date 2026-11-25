@@ -31,6 +31,7 @@ from players.constants import PlayerButtons
 #   Loggers
 from loggers import _sp_logger
 #   Memory
+from memory import TYPE_SIZES
 from memory import get_virtual_function
 from memory import make_object
 from memory.hooks import PreHook
@@ -658,7 +659,8 @@ def _pre_fire_output(args):
         return
 
     # Windows is a bit weird: the function takes 4 additional arguments...
-    if PLATFORM == 'windows':
+    # (32-bit only: variant_t is passed by value there, by reference on x64)
+    if PLATFORM == 'windows' and TYPE_SIZES['POINTER'] == 4:
         args = (args[0],) + tuple(args)[5:]
 
     caller_ptr = args[3]

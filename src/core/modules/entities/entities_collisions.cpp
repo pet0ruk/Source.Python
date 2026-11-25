@@ -213,7 +213,7 @@ void CCollisionManager::RegisterHook(T tFunc, unsigned int uiFilterIndex, unsign
 		)
 	}
 
-	CFunction *pFunc = CPointer((unsigned long)((void *)enginetrace)).MakeVirtualFunction(*pInfo);
+	CFunction *pFunc = CPointer((uintptr_t)((void *)enginetrace)).MakeVirtualFunction(*pInfo);
 	delete pInfo;
 
 	if (!pFunc || !pFunc->IsHookable()) {

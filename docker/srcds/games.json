@@ -5,7 +5,8 @@
     "game_dir": "tf",
     "sp_engine": "orangebox",
     "map": "ctf_2fort",
-    "x86_64": true
+    "x86_64": true,
+    "x86_64_windows": true
   },
   "css": {
     "app_id": 232330,
@@ -14,6 +15,7 @@
     "sp_engine": "orangebox",
     "map": "de_dust2",
     "x86_64": true,
+    "x86_64_windows": true,
     "x86_64_launcher": "tf2"
   },
   "dods": {
@@ -23,6 +25,7 @@
     "sp_engine": "orangebox",
     "map": "dod_avalanche",
     "x86_64": true,
+    "x86_64_windows": true,
     "x86_64_launcher": "tf2"
   },
   "hl2dm": {
@@ -32,6 +35,7 @@
     "sp_engine": "orangebox",
     "map": "dm_lockdown",
     "x86_64": true,
+    "x86_64_windows": true,
     "x86_64_launcher": "tf2"
   },
   "l4d2": {

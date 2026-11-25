@@ -30,6 +30,7 @@
 //-----------------------------------------------------------------------------
 // Includes.
 //-----------------------------------------------------------------------------
+#include <stdint.h>
 #include "entities_entity.h"
 #include ENGINE_INCLUDE_PATH(entities_datamaps_wrap.h)
 
@@ -45,7 +46,7 @@ inline const char* FindOutputName(CBaseEntity* pCaller, void* pOutput)
 		for (int iCurrentIndex=0; iCurrentIndex < pDatamap->dataNumFields; ++iCurrentIndex)
 		{
 			typedescription_t& pCurrentDataDesc = pDatamap->dataDesc[iCurrentIndex];
-			if ((unsigned long) pCaller + TypeDescriptionExt::get_offset(pCurrentDataDesc) == (unsigned long) pOutput)
+			if ((uintptr_t) pCaller + TypeDescriptionExt::get_offset(pCurrentDataDesc) == (uintptr_t) pOutput)
 				return pCurrentDataDesc.externalName;
 		}
 

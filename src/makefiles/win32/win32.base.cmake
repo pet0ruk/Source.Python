@@ -31,7 +31,11 @@ Include_Directories(
 # ------------------------------------------------------------------
 # Required to get SP to compile on MSVC for csgo.
 # ------------------------------------------------------------------
-Add_Definitions(-DCOMPILER_MSVC -DCOMPILER_MSVC32 -D_WIN32)
+If(SP_X86_64)
+    Add_Definitions(-DCOMPILER_MSVC -DCOMPILER_MSVC64 -D_WIN32)
+Else()
+    Add_Definitions(-DCOMPILER_MSVC -DCOMPILER_MSVC32 -D_WIN32)
+EndIf()
 
 # ------------------------------------------------------------------
 # Release flags: optimised, without assert() (NDEBUG), like the Linux
@@ -47,11 +51,23 @@ Set(CMAKE_CXX_FLAGS_RELEASE "/O2 /Ob2 /DNDEBUG /D_NDEBUG /wd4005 /MP")
 set_property(TARGET core source-python PROPERTY
   MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
+# ------------------------------------------------------------------
+# x64: the SDK's tier1/strtools.h defines a macro str_size (unsigned int on
+# _WIN64), which breaks Boost.Range's str_size() when Boost's header comes
+# after it; that header is included first.
+# ------------------------------------------------------------------
+If(SP_X86_64)
+    Target_Compile_Options(core PRIVATE /FIboost/range/detail/implementation_help.hpp)
+EndIf()
+
 #Set_Target_Properties(core PROPERTIES
 #    LINK_FLAGS_RELEASE "/NODEFAULTLIB:LIBC.lib /NODEFAULTLIB:LIBCMT.lib /NODEFAULTLIB:LIBCPMT.lib"
 #)
 
-SET(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} /SAFESEH:NO")
+If(NOT SP_X86_64)
+    # (x64 has no SAFESEH)
+    SET(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} /SAFESEH:NO")
+EndIf()
 
 # The loader uses std::filesystem (updater.cpp), which MSVC only has from C++17; its default is
 # C++14 (Linux builds everything as C++17, linux.base.cmake).
@@ -73,12 +89,17 @@ Set(SOURCEPYTHON_LINK_LIBRARIES
 )
 
 If( SOURCE_ENGINE MATCHES "orangebox")
+    If(SP_X86_64)
+        Set(_sdk_libs ${SOURCESDK_LIB}/public/x64)
+    Else()
+        Set(_sdk_libs ${SOURCESDK_LIB}/public/x86)
+    EndIf()
     Set(SOURCEPYTHON_LINK_LIBRARIES
         ${SOURCEPYTHON_LINK_LIBRARIES}
-        ${SOURCESDK_LIB}/public/x86/tier0.lib
-        ${SOURCESDK_LIB}/public/x86/tier1.lib
-        ${SOURCESDK_LIB}/public/x86/vstdlib.lib
-        ${SOURCESDK_LIB}/public/x86/mathlib.lib
+        ${_sdk_libs}/tier0.lib
+        ${_sdk_libs}/tier1.lib
+        ${_sdk_libs}/vstdlib.lib
+        ${_sdk_libs}/mathlib.lib
     )
 Else()
     Set(SOURCEPYTHON_LINK_LIBRARIES

@@ -30,6 +30,7 @@
 //-----------------------------------------------------------------------------
 // Includes.
 //-----------------------------------------------------------------------------
+#include <stdint.h>
 #include "boost/shared_ptr.hpp"
 #include "boost/python/str.hpp"
 using namespace boost::python;
@@ -131,7 +132,7 @@ public:
 	template<class T>
 	T GetDatamapPropertyByOffset(int offset)
 	{
-		return *(T*) (((unsigned long) this) + offset);
+		return *(T*) (((uintptr_t) this) + offset);
 	}
 
 	const char* GetDatamapPropertyStringArray(const char* name)
@@ -141,7 +142,7 @@ public:
 
 	const char* GetDatamapPropertyStringArrayByOffset(int offset)
 	{
-		return (const char*) (((unsigned long) this) + offset);
+		return (const char*) (((uintptr_t) this) + offset);
 	}
 
 	template<class T>
@@ -153,7 +154,7 @@ public:
 	template<class T>
 	void SetDatamapPropertyByOffset(int offset, T value)
 	{
-		*(T*) (((unsigned long) this) + offset) = value;
+		*(T*) (((uintptr_t) this) + offset) = value;
 	}
 
 	void SetDatamapPropertyStringArray(const char* name, const char* value)
@@ -163,7 +164,7 @@ public:
 
 	void SetDatamapPropertyStringArrayByOffset(int offset, const char* value)
 	{
-		strcpy((char*) (((unsigned long) this) + offset), value);
+		strcpy((char*) (((uintptr_t) this) + offset), value);
 	}
 
 	// Network property methods
@@ -178,7 +179,7 @@ public:
 	template<class T>
 	T GetNetworkPropertyByOffset(int offset)
 	{
-		return *(T *) (((unsigned long) this) + offset);
+		return *(T *) (((uintptr_t) this) + offset);
 	}
 
 	const char* GetNetworkPropertyStringArray(const char* name)
@@ -188,7 +189,7 @@ public:
 
 	const char* GetNetworkPropertyStringArrayByOffset(int offset)
 	{
-		return (const char*) (((unsigned long) this) + offset);
+		return (const char*) (((uintptr_t) this) + offset);
 	}
 
 	template<class T>
@@ -200,7 +201,7 @@ public:
 	template<class T>
 	void SetNetworkPropertyByOffset(int offset, T value)
 	{
-		*(T *) (((unsigned long) this) + offset) = value;
+		*(T *) (((uintptr_t) this) + offset) = value;
 		GetEdict()->StateChanged();
 	}
 
@@ -211,7 +212,7 @@ public:
 
 	void SetNetworkPropertyStringArrayByOffset(int offset, const char* value)
 	{
-		strcpy((char*) (((unsigned long) this) + offset), value);
+		strcpy((char*) (((uintptr_t) this) + offset), value);
 		GetEdict()->StateChanged();
 	}
 

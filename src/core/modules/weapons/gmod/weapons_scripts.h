@@ -30,6 +30,7 @@
 //-----------------------------------------------------------------------------
 // Includes.
 //-----------------------------------------------------------------------------
+#include <stdint.h>
 #include "datamap.h"
 #include "game/shared/weapon_parse.h"
 #include "tier1/utldict.h"
@@ -53,7 +54,7 @@ public:
 		if (uiIndex >= pWeaponDataBase->Count())
 			BOOST_RAISE_EXCEPTION(PyExc_IndexError, "Index out of range.");
 
-		return new CPointer((unsigned long)(void *)pWeaponDataBase->Element(uiIndex));
+		return new CPointer((uintptr_t)(void *)pWeaponDataBase->Element(uiIndex));
 	}
 };
 

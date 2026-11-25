@@ -123,7 +123,7 @@ void CTransmitManager::Initialize()
 			"Failed to retrieve CheckTransmit's info."
 		)
 
-	CFunction *pFunc = CPointer((unsigned long)((void *)gameents)).MakeVirtualFunction(*pInfo);
+	CFunction *pFunc = CPointer((uintptr_t)((void *)gameents)).MakeVirtualFunction(*pInfo);
 	delete pInfo;
 
 	if (!pFunc || !pFunc->IsHookable())

@@ -55,6 +55,7 @@
 // >> INCLUDES
 // ============================================================================
 // Memory
+#include <stdint.h>
 #include "memory_function_info.h"
 #include "memory_pointer.h"
 #include "memory_tools.h"
@@ -63,7 +64,7 @@
 // ============================================================================
 // >> ExtractAddress
 // ============================================================================
-inline unsigned long ExtractAddress(object oPtr, bool bValidate = false)
+inline uintptr_t ExtractAddress(object oPtr, bool bValidate = false)
 {
 	CPointer* pPtr;
 
@@ -113,7 +114,7 @@ inline std::vector<DataType_t> ObjectToDataTypeVector(object oArgTypes)
 template<class T>
 CPointer* __ptr__(T* pThis)
 {
-	return new CPointer((unsigned long) pThis);
+	return new CPointer((uintptr_t) pThis);
 }
 
 // Use this macro to add this class to get_pointer_object()

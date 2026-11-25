@@ -49,11 +49,12 @@
 #endif
 #define DC_LONG_LONG    long long
 /* Source.Python: to its C++ code, pointers are passed and returned as integers, the type CPointer
-   keeps addresses in (CPointer::m_ulAddr). The library itself keeps void*, which it is written
-   for. Both are passed and returned the same way on the 32-bit platforms Source.Python builds
-   for; unsigned long would truncate addresses on 64-bit Windows. */
+   keeps addresses in (CPointer::m_ulAddr, a uintptr_t). The library itself keeps void*, which it
+   is written for. Both are passed and returned the same way on every platform Source.Python
+   builds for (an integer the size of a pointer, in the same registers). */
 #if defined(__cplusplus)
-#define DC_POINTER      unsigned long
+#include <stdint.h>
+#define DC_POINTER      uintptr_t
 #else
 #define DC_POINTER      void*
 #endif

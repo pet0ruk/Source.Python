@@ -57,7 +57,7 @@ extern IVEngineServer* engine;
 //-----------------------------------------------------------------------------
 // BinaryFile class
 //-----------------------------------------------------------------------------
-CBinaryFile::CBinaryFile(unsigned long ulModule, unsigned long ulBase, unsigned long ulSize)
+CBinaryFile::CBinaryFile(uintptr_t ulModule, uintptr_t ulBase, uintptr_t ulSize)
 {
 	m_ulModule = ulModule;
 	m_ulBase = ulBase;
@@ -89,14 +89,14 @@ CPointer* CBinaryFile::FindSignatureRaw(object oSignature)
 
 		if (i == iLength)
 		{
-			return new CPointer((unsigned long) base);
+			return new CPointer((uintptr_t) base);
 		}
 		base++;
 	}
 	return new CPointer();
 }
 
-void CBinaryFile::AddSignatureToCache(unsigned char* sigstr, int iLength, unsigned int ulAddr)
+void CBinaryFile::AddSignatureToCache(unsigned char* sigstr, int iLength, uintptr_t ulAddr)
 {
 	Signature_t sig_t = {new unsigned char[iLength+1], ulAddr};
 	strcpy((char*) sig_t.m_szSignature, (char*) sigstr);
@@ -211,13 +211,13 @@ CPointer* CBinaryFile::FindSymbol(char* szSymbol)
 	if (!pAddr)
 		BOOST_RAISE_EXCEPTION(PyExc_ValueError, "Could not find symbol: %s", szSymbol)
 
-	return new CPointer((unsigned long) pAddr);
+	return new CPointer((uintptr_t) pAddr);
 
 #elif defined(__linux__)
 	dlerror();
 	void* pResult = dlsym((void*) m_ulModule, szSymbol);
 	if (!dlerror())
-		return new CPointer((unsigned long) pResult);
+		return new CPointer((uintptr_t) pResult);
 
 	// -----------------------------------------
 	// We need to use mmap now that VALVe has
@@ -315,7 +315,7 @@ CPointer* CBinaryFile::FindSymbol(char* szSymbol)
 	if (!pResult)
 		BOOST_RAISE_EXCEPTION(PyExc_ValueError, "Could not find symbol: %s", szSymbol)
 
-	return new CPointer((unsigned long) pResult);
+	return new CPointer((uintptr_t) pResult);
 #else
 #error "BinaryFile::FindSymbol() is not implemented on this OS"
 #endif
@@ -372,7 +372,7 @@ dict CBinaryFile::GetSymbols()
 		const char* name = (const char*) (m_ulModule + symbols[i]);
 
 		// TODO: Don't use GetProcAddress. There is probably a faster way
-		result[name] = CPointer((unsigned long) GetProcAddress((HMODULE) m_ulModule, name));
+		result[name] = CPointer((uintptr_t) GetProcAddress((HMODULE) m_ulModule, name));
 	}
 #elif __linux__
 	// TODO: Remove duplicated code. See also: FindSymbol()
@@ -453,7 +453,7 @@ dict CBinaryFile::GetSymbols()
 		if (sym.st_shndx == SHN_UNDEF || (sym_type != STT_FUNC && sym_type != STT_OBJECT))
 			continue;
 
-		result[sym_name] = CPointer((unsigned long)(dlmap->l_addr + sym.st_value));
+		result[sym_name] = CPointer((uintptr_t)(dlmap->l_addr + sym.st_value));
 	}
 
 	// Unmap the file now.
@@ -509,8 +509,8 @@ CBinaryFile* CBinaryManager::FindBinary(char* szPath, bool bSrvCheck /* = true *
 #endif
 
 	bool bWasLoaded = IsLibraryLoaded(szBinaryPath.data());
-	unsigned long ulModule = (unsigned long) dlLoadLibrary(szBinaryPath.data());
-	unsigned long ulBase = 0;
+	uintptr_t ulModule = (uintptr_t) dlLoadLibrary(szBinaryPath.data());
+	uintptr_t ulBase = 0;
 #ifdef __linux__
 	if (!ulModule)
 	{
@@ -526,7 +526,7 @@ CBinaryFile* CBinaryManager::FindBinary(char* szPath, bool bSrvCheck /* = true *
 		szBinaryPath = std::string(szGameDir) + "/bin/" + szBinaryPath;
 #endif
 		bWasLoaded = IsLibraryLoaded(szBinaryPath.data());
-		ulModule = (unsigned long) dlLoadLibrary(szBinaryPath.data());
+		ulModule = (uintptr_t) dlLoadLibrary(szBinaryPath.data());
 	}
 #endif
 
@@ -557,7 +557,7 @@ CBinaryFile* CBinaryManager::FindBinary(char* szPath, bool bSrvCheck /* = true *
 		}
 	}
 
-	unsigned long ulSize;
+	uintptr_t ulSize;
 
 #ifdef _WIN32
 	IMAGE_DOS_HEADER* dos = (IMAGE_DOS_HEADER *) ulModule;

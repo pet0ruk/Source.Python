@@ -1,7 +1,8 @@
 # Builds Source.Python from the branch under test and runs the functional tests from
 # docker/harness on the srcds:<game> test images (see srcds-images.yml), one job per game and
 # platform (Linux: srcds:<game>; Windows: the files of srcds:<game>-windows), and a 64-bit build
-# on the 64-bit server of each game that has one (games.json: x86_64; Linux).
+# on the 64-bit server of each game that has one (games.json: x86_64 for Linux, x86_64_windows
+# for Windows).
 name: Source.Python tests
 
 on:
@@ -35,6 +36,7 @@ jobs:
     outputs:
       list: ${{ steps.list.outputs.list }}
       list_x86_64: ${{ steps.list.outputs.list_x86_64 }}
+      list_x86_64_windows: ${{ steps.list.outputs.list_x86_64_windows }}
       linux: ${{ steps.list.outputs.linux }}
       windows: ${{ steps.list.outputs.windows }}
     steps:
@@ -53,6 +55,7 @@ jobs:
           fi
           # the games with a 64-bit server, of those selected
           echo "list_x86_64=$(jq -c --arg g "$GAME" '[to_entries[] | select(.value.x86_64 == true and ($g == "all" or .key == $g)) | .key]' docker/srcds/games.json)" >> "$GITHUB_OUTPUT"
+          echo "list_x86_64_windows=$(jq -c --arg g "$GAME" '[to_entries[] | select(.value.x86_64_windows == true and ($g == "all" or .key == $g)) | .key]' docker/srcds/games.json)" >> "$GITHUB_OUTPUT"
 
   test:
     needs: games
@@ -229,6 +232,69 @@ jobs:
         uses: actions/upload-artifact@v7 # v7.0.2
         with:
           name: sp-tests-${{ matrix.game }}-windows
+          if-no-files-found: ignore
+          path: |
+            ${{ runner.temp }}/sp-out/report.txt
+            ${{ runner.temp }}/sp-out/build/build.log
+            ${{ runner.temp }}/sp-out/build/hl2sdk.txt
+            ${{ runner.temp }}/sp-out/harness/results.json
+            ${{ runner.temp }}/sp-out/harness/console.log
+            ${{ runner.temp }}/sp-out/harness/srcds_run.log
+            ${{ runner.temp }}/sp-out/harness/srcds.exitcode
+            ${{ runner.temp }}/sp-out/harness/crash.txt
+            ${{ runner.temp }}/sp-out/harness/dumps/
+            ${{ runner.temp }}/sp-out/harness/source-python-logs/
+
+  # The 64-bit Windows server of each game that has one (srcds_win64.exe; for CS:S, DoD:S and
+  # HL2DM TF2's, see run-windows.sh).
+  test-windows-x86_64:
+    needs: games
+    if: needs.games.outputs.windows == 'true' && needs.games.outputs.list_x86_64_windows != '[]'
+    name: test-windows (${{ matrix.game }}, x86_64)
+    runs-on: windows-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        game: ${{ fromJSON(needs.games.outputs.list_x86_64_windows) }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      GAME: ${{ matrix.game }}
+      ARCH: x86_64
+    steps:
+      - uses: actions/checkout@v7 # v7.0.1
+
+      - name: Output directory
+        run: echo "OUT=$(cygpath -u "$RUNNER_TEMP")/sp-out" >> "$GITHUB_ENV"
+
+      - name: Build Source.Python (${{ matrix.game }}, Windows, x86_64)
+        run: docker/build/build-windows.sh "$GAME" "$OUT/build"
+
+      - name: Run tests on srcds:${{ matrix.game }}-windows
+        env:
+          SRCDS_IMAGE: ghcr.io/${{ github.repository_owner }}/srcds
+          CRASH_DUMPS: 1
+        run: |
+          set -o pipefail
+          docker/harness/run-windows.sh "$GAME" "$OUT/build/release" "$OUT/harness" | tee "$OUT/report.txt"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### $GAME, Windows x86_64 (hl2sdk $(cut -c1-9 "$OUT/build/hl2sdk.txt" 2>/dev/null || echo '?'))"
+            echo '```text'
+            sed -n '/^gamedata vtables/,$p' "$OUT/report.txt" 2>/dev/null || echo "no test report (build failed?)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v7 # v7.0.2
+        with:
+          name: sp-tests-${{ matrix.game }}-windows-x86_64
           if-no-files-found: ignore
           path: |
             ${{ runner.temp }}/sp-out/report.txt

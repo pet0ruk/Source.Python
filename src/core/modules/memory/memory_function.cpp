@@ -170,7 +170,7 @@ std::shared_ptr<ICallingConvention> ShareCustomConvention(object oConvention)
 // ============================================================================
 // >> CFunction
 // ============================================================================
-CFunction::CFunction(unsigned long ulAddr, object oCallingConvention, object oArgs, object oReturnType)
+CFunction::CFunction(uintptr_t ulAddr, object oCallingConvention, object oArgs, object oReturnType)
 	:CPointer(ulAddr)
 {
 	// Step 1: Validate and convert the argument types
@@ -216,7 +216,7 @@ CFunction::CFunction(unsigned long ulAddr, object oCallingConvention, object oAr
 	m_iCallingConvention = GetDynCallConvention(m_eCallingConvention);
 }
 
-CFunction::CFunction(unsigned long ulAddr, Convention_t eCallingConvention,
+CFunction::CFunction(uintptr_t ulAddr, Convention_t eCallingConvention,
 	int iCallingConvention, tuple tArgs, DataType_t eReturnType, object oConverter)
 	:CPointer(ulAddr)
 {
@@ -278,12 +278,12 @@ CFunction* CFunction::GetTrampoline()
 	if (!pHook)
 		BOOST_RAISE_EXCEPTION(PyExc_ValueError, "Function was not hooked.")
 
-	return new CFunction((unsigned long) pHook->GetTrampoline(), m_eCallingConvention,
+	return new CFunction((uintptr_t) pHook->GetTrampoline(), m_eCallingConvention,
 		m_iCallingConvention, m_tArgs, m_eReturnType, m_oConverter);
 }
 
 template<class ReturnType, class Function>
-ReturnType CallHelper(Function func, DCCallVM* vm, unsigned long addr)
+ReturnType CallHelper(Function func, DCCallVM* vm, uintptr_t addr)
 {
 	ReturnType result;
 	TRY_SEGV()
@@ -292,7 +292,7 @@ ReturnType CallHelper(Function func, DCCallVM* vm, unsigned long addr)
 	return result;
 }
 
-void CallHelperVoid(DCCallVM* vm, unsigned long addr)
+void CallHelperVoid(DCCallVM* vm, uintptr_t addr)
 {
 	TRY_SEGV()
 		dcCallVoid(vm, addr);
@@ -333,14 +333,14 @@ object CFunction::Call(PyObject *args, PyObject *kw)
 			case DATA_TYPE_DOUBLE:		dcArgDouble(g_pCallVM, extract<double>(arg)); break;
 			case DATA_TYPE_POINTER:
 			{
-				unsigned long ulAddr = 0;
+				uintptr_t ulAddr = 0;
 				if (arg != Py_None)
 					ulAddr = ExtractAddress(object(handle<>(borrowed(arg))));
 
 				dcArgPointer(g_pCallVM, ulAddr);
 				break;
 			}
-			case DATA_TYPE_STRING:		dcArgPointer(g_pCallVM, (unsigned long) (void *) extract<char *>(arg)); break;
+			case DATA_TYPE_STRING:		dcArgPointer(g_pCallVM, (uintptr_t) (void *) extract<char *>(arg)); break;
 			default:					BOOST_RAISE_EXCEPTION(PyExc_ValueError, "Unknown argument type.")
 		}
 	}
@@ -364,7 +364,7 @@ object CFunction::Call(PyObject *args, PyObject *kw)
 		case DATA_TYPE_DOUBLE:		return object(CallHelper<double>(dcCallDouble, g_pCallVM, m_ulAddr));
 		case DATA_TYPE_POINTER:
 		{
-			CPointer pPtr = CPointer(CallHelper<unsigned long>(dcCallPointer, g_pCallVM, m_ulAddr));
+			CPointer pPtr = CPointer(CallHelper<uintptr_t>(dcCallPointer, g_pCallVM, m_ulAddr));
 			if (!m_oConverter.is_none())
 				return m_oConverter(pPtr);
 
@@ -382,7 +382,7 @@ object CFunction::CallTrampoline(PyObject *args, PyObject *kw)
 	if (!pHook)
 		BOOST_RAISE_EXCEPTION(PyExc_ValueError, "Function was not hooked.")
 
-	return CFunction((unsigned long) pHook->GetTrampoline(), m_eCallingConvention,
+	return CFunction((uintptr_t) pHook->GetTrampoline(), m_eCallingConvention,
 		m_iCallingConvention, m_tArgs, m_eReturnType, m_oConverter).Call(args, kw);
 }
 
@@ -390,7 +390,7 @@ object CFunction::SkipHooks(PyObject *args, PyObject *kw)
 {
 	CHook* pHook = GetHookManager()->FindHook((void *) m_ulAddr);
 	if (pHook)
-		return CFunction((unsigned long) pHook->GetTrampoline(), m_eCallingConvention,
+		return CFunction((uintptr_t) pHook->GetTrampoline(), m_eCallingConvention,
 			m_iCallingConvention, m_tArgs, m_eReturnType, m_oConverter).Call(args, kw);
 
 	return Call(args, kw);

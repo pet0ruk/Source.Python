@@ -184,7 +184,7 @@ void export_binary_file(scope _memory)
 
 void export_pointer(scope _memory)
 {
-	class_<CPointer, boost::shared_ptr<CPointer> >("Pointer", init< optional<unsigned long, bool> >())
+	class_<CPointer, boost::shared_ptr<CPointer> >("Pointer", init< optional<uintptr_t, bool> >())
 		.def(init<CPointer&>())
 
 		// get/set_<type> methods
@@ -348,40 +348,40 @@ void export_pointer(scope _memory)
 
         .def(!self)
 
-        .def(self == other<unsigned long>())
+        .def(self == other<uintptr_t>())
         .def(self == self)
 
-        .def(self != other<unsigned long>())
+        .def(self != other<uintptr_t>())
         .def(self != self)
 
         .def(self += int())
         .def(self += self)
 
-        .def(self < other<unsigned long>())
+        .def(self < other<uintptr_t>())
         .def(self < self)
 
-        .def(self <= other<unsigned long>())
+        .def(self <= other<uintptr_t>())
         .def(self <= self)
 
-        .def(self > other<unsigned long>())
+        .def(self > other<uintptr_t>())
         .def(self > self)
 
-        .def(self >= other<unsigned long>())
+        .def(self >= other<uintptr_t>())
         .def(self >= self)
 		
-        .def("__add__", &CPointer::operator+<unsigned long>, manage_new_object_policy())
+        .def("__add__", &CPointer::operator+<uintptr_t>, manage_new_object_policy())
         .def("__add__", &CPointer::operator+<CPointer>, manage_new_object_policy())
 
-        .def("__radd__", &CPointer::operator+<unsigned long>, manage_new_object_policy())
+        .def("__radd__", &CPointer::operator+<uintptr_t>, manage_new_object_policy())
         .def("__radd__", &CPointer::operator+<CPointer>, manage_new_object_policy())
 
         .def(self -= int())
         .def(self -= self)
 		
-        .def("__sub__", &CPointer::operator-<unsigned long>, manage_new_object_policy())
+        .def("__sub__", &CPointer::operator-<uintptr_t>, manage_new_object_policy())
         .def("__sub__", &CPointer::operator-<CPointer>, manage_new_object_policy())
 
-        .def("__rsub__", &CPointer::operator-<unsigned long>, manage_new_object_policy())
+        .def("__rsub__", &CPointer::operator-<uintptr_t>, manage_new_object_policy())
         .def("__rsub__", &CPointer::operator-<CPointer>, manage_new_object_policy())
 
 		// Attributes
@@ -461,7 +461,7 @@ void export_type_info_iter(scope _memory)
 // ============================================================================
 void export_function(scope _memory)
 {
-	class_<CFunction, bases<CPointer> >("Function", init<unsigned long, object, object, object>())
+	class_<CFunction, bases<CPointer> >("Function", init<uintptr_t, object, object, object>())
 		.def(init<CFunction&>())
 
 		.def("__call__",

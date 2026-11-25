@@ -30,6 +30,7 @@
 //-----------------------------------------------------------------------------
 // Includes
 //-----------------------------------------------------------------------------
+#include <stdint.h>
 #include <list>
 #include "export_main.h"
 #include "memory_pointer.h"
@@ -37,14 +38,14 @@
 struct Signature_t
 {
 	unsigned char* m_szSignature;
-	unsigned long  m_ulAddr;
+	uintptr_t      m_ulAddr;
 };
 
 
 class CBinaryFile
 {
 public:
-	CBinaryFile(unsigned long ulModule, unsigned long ulBase, unsigned long ulSize);
+	CBinaryFile(uintptr_t ulModule, uintptr_t ulBase, uintptr_t ulSize);
 
 	CPointer* FindSignatureRaw(object oSignature);
 
@@ -56,16 +57,16 @@ public:
 	dict GetSymbols();
 
 private:
-	void AddSignatureToCache(unsigned char* sigstr, int iLength, unsigned int ulAddr);
+	void AddSignatureToCache(unsigned char* sigstr, int iLength, uintptr_t ulAddr);
 
 	bool SearchSigInCache(unsigned char* sigstr, CPointer*& result);
 	bool SearchSigInBinary(object oSignature, int iLength, unsigned char* sigstr, CPointer*& result);
 	bool SearchSigHooked(object oSignature, int iLength, unsigned char* sigstr, CPointer*& result);
 
 public:
-	unsigned long			m_ulModule;
-	unsigned long			m_ulBase;
-	unsigned long			m_ulSize;
+	uintptr_t				m_ulModule;
+	uintptr_t				m_ulBase;
+	uintptr_t				m_ulSize;
 	std::list<Signature_t>	m_Signatures;
 };
 

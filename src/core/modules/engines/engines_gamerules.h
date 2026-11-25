@@ -31,6 +31,7 @@
 // Includes.
 //-----------------------------------------------------------------------------
 // SDK
+#include <stdint.h>
 #include "strtools.h"
 
 
@@ -61,7 +62,7 @@ public:
 	template<class T>
 	T GetPropertyByOffset(int offset)
 	{
-		return *(T *) (((unsigned long) this) + offset);
+		return *(T *) (((uintptr_t) this) + offset);
 	}
 
 	const char* GetPropertyStringArray(const char* name)
@@ -71,7 +72,7 @@ public:
 
 	const char* GetPropertyStringArrayByOffset(int offset)
 	{
-		return (const char*) (((unsigned long) this) + offset);
+		return (const char*) (((uintptr_t) this) + offset);
 	}
 
 	// Setter methods
@@ -84,7 +85,7 @@ public:
 	template<class T>
 	void SetPropertyByOffset(int offset, T value)
 	{
-		*(T *) (((unsigned long) this) + offset) = value;
+		*(T *) (((uintptr_t) this) + offset) = value;
 	}
 
 	void SetPropertyStringArray(const char* name, const char* value)
@@ -94,7 +95,7 @@ public:
 
 	void SetPropertyStringArrayByOffset(int offset, const char* value)
 	{
-		strcpy((char*) (((unsigned long) this) + offset), value);
+		strcpy((char*) (((uintptr_t) this) + offset), value);
 	}
 };
 
