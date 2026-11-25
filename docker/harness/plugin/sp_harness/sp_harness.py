@@ -1156,6 +1156,10 @@ def check_player_properties(player):
     expect(player.health > 0 and player.health == info.health, (player.health, info.health))
     expect(player.team == info.team, (player.team, info.team))
     expect((player.origin - info.origin).length < 1.0, (tuple(player.origin), tuple(info.origin)))
+    if GAME_NAME == 'cstrike':
+        # [based_attribute]s (CCSPlayer.ini): offsets from network properties. A bot has no clan
+        # tag and no MVPs yet; a wrong offset reads a neighbouring field instead.
+        expect((player.mvps, player.clan_tag) == (0, ''), (player.mvps, player.clan_tag))
     return {'name': player.name, 'health': player.health, 'team': player.team}
 
 
