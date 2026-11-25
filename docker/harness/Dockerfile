@@ -2,6 +2,8 @@
 # server under it, tools/srcds-gdb.sh, so a crash leaves a backtrace), and without a game's
 # bundled libstdc++/libgcc_s when games.json asks for it (remove_game_libstdcxx; run.sh passes it
 # on): CS:GO ships a libgcc_s older than the image's libstdc++, and its engine then can't load.
+# For a 64-bit server (X86_64=1) it also adds the 64-bit libcurl-gnutls, which the engine's
+# replay_srv.so needs and the srcds images only have the 32-bit one of.
 # Source.Python itself needs nothing from the image (libstdc++ is linked statically, and the
 # Python runtime brings its own libraries).
 #
@@ -16,3 +18,7 @@ RUN apt-get update \
 COPY tools/srcds-gdb.sh /usr/local/bin/srcds-gdb
 ARG REMOVE_GAME_LIBSTDCXX=
 RUN [ -z "$REMOVE_GAME_LIBSTDCXX" ] || rm -f /srv/srcds/bin/libstdc++.so.6 /srv/srcds/bin/libgcc_s.so.1
+ARG X86_64=
+RUN [ -z "$X86_64" ] || { apt-get update \
+ && apt-get install -y --no-install-recommends libcurl3t64-gnutls \
+ && rm -rf /var/lib/apt/lists/*; }

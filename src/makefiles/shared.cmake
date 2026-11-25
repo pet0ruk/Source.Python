@@ -13,6 +13,32 @@ Set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING
 )
 
 # ------------------------------------------------------------------
+# Architecture: x86 (32-bit, every game) or x86_64 (the games with
+# 64-bit dedicated servers, whose SDK branch has 64-bit libraries).
+# On Windows it must match the generator platform (-A Win32 / -A x64).
+# ------------------------------------------------------------------
+Set(SP_ARCH x86 CACHE STRING "Architecture to build for: x86 or x86_64")
+Set_Property(CACHE SP_ARCH PROPERTY STRINGS x86 x86_64)
+Set(SP_X86_64_BRANCHES tf2 css dods hl2dm)
+If(SP_ARCH STREQUAL "x86_64")
+    If(NOT BRANCH IN_LIST SP_X86_64_BRANCHES)
+        Message(FATAL_ERROR "SP_ARCH=x86_64: ${BRANCH} has no 64-bit server (64-bit builds: ${SP_X86_64_BRANCHES})")
+    EndIf()
+    If(WIN32)
+        # Not yet: the Windows build still links the SDK's 32-bit libraries, and Source.Python
+        # keeps addresses in unsigned long, which is 32 bits on 64-bit Windows.
+        Message(FATAL_ERROR "SP_ARCH=x86_64 is only supported on Linux so far")
+    EndIf()
+    Set(SP_X86_64 TRUE)
+    # The SDK's 64-bit build (platform.h, ...)
+    Add_Definitions(-DX64BITS -DPLATFORM_64BITS)
+ElseIf(SP_ARCH STREQUAL "x86")
+    Set(SP_X86_64 FALSE)
+Else()
+    Message(FATAL_ERROR "SP_ARCH must be x86 or x86_64, not ${SP_ARCH}")
+EndIf()
+
+# ------------------------------------------------------------------
 # Setup include paths.
 # ------------------------------------------------------------------
 Set(SOURCESDK_DIR        ${CMAKE_CURRENT_SOURCE_DIR}/hl2sdk)

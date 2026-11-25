@@ -1,6 +1,7 @@
 # Builds Source.Python from the branch under test and runs the functional tests from
 # docker/harness on the srcds:<game> test images (see srcds-images.yml), one job per game and
-# platform (Linux: srcds:<game>; Windows: the files of srcds:<game>-windows).
+# platform (Linux: srcds:<game>; Windows: the files of srcds:<game>-windows), and a 64-bit build
+# on the 64-bit server of each game that has one (games.json: x86_64; Linux).
 name: Source.Python tests
 
 on:
@@ -33,6 +34,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       list: ${{ steps.list.outputs.list }}
+      list_x86_64: ${{ steps.list.outputs.list_x86_64 }}
       linux: ${{ steps.list.outputs.linux }}
       windows: ${{ steps.list.outputs.windows }}
     steps:
@@ -49,6 +51,8 @@ jobs:
           else
             echo "list=$(jq -cn --arg g "$GAME" '[$g]')" >> "$GITHUB_OUTPUT"
           fi
+          # the games with a 64-bit server, of those selected
+          echo "list_x86_64=$(jq -c --arg g "$GAME" '[to_entries[] | select(.value.x86_64 == true and ($g == "all" or .key == $g)) | .key]' docker/srcds/games.json)" >> "$GITHUB_OUTPUT"
 
   test:
     needs: games
@@ -100,6 +104,69 @@ jobs:
         uses: actions/upload-artifact@v7 # v7.0.2
         with:
           name: sp-tests-${{ matrix.game }}
+          if-no-files-found: ignore
+          path: |
+            ${{ env.OUT }}/report.txt
+            ${{ env.OUT }}/build/build.log
+            ${{ env.OUT }}/build/hl2sdk.txt
+            ${{ env.OUT }}/harness/results.json
+            ${{ env.OUT }}/harness/console.log
+            ${{ env.OUT }}/harness/srcds_run.log
+            ${{ env.OUT }}/harness/crash.txt
+            ${{ env.OUT }}/harness/gamedata-vtables.txt
+            ${{ env.OUT }}/harness/source-python-logs/
+
+  # The same tests with a 64-bit build on the game's 64-bit server (srcds_run_64).
+  test-x86_64:
+    needs: games
+    if: needs.games.outputs.linux == 'true' && needs.games.outputs.list_x86_64 != '[]'
+    name: test (${{ matrix.game }}, x86_64)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        game: ${{ fromJSON(needs.games.outputs.list_x86_64) }}
+    env:
+      GAME: ${{ matrix.game }}
+      ARCH: x86_64
+    steps:
+      - uses: actions/checkout@v7 # v7.0.1
+
+      - name: Output directory
+        run: echo "OUT=$RUNNER_TEMP/sp-out" >> "$GITHUB_ENV"
+
+      - name: Build Source.Python (${{ matrix.game }}, x86_64)
+        run: docker/build/build.sh "$GAME" "$OUT/build"
+
+      - uses: docker/login-action@v4 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run tests on srcds:${{ matrix.game }} (64-bit server)
+        env:
+          SRCDS_IMAGE: ghcr.io/${{ github.repository_owner }}/srcds
+        run: |
+          set -o pipefail
+          docker/harness/run.sh "$GAME" "$OUT/build/release" "$OUT/harness" | tee "$OUT/report.txt"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### $GAME x86_64 (hl2sdk $(cut -c1-9 "$OUT/build/hl2sdk.txt" 2>/dev/null || echo '?'))"
+            echo '```text'
+            sed -n '/^gamedata vtables/,$p' "$OUT/report.txt" 2>/dev/null || echo "no test report (build failed?)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v7 # v7.0.2
+        with:
+          name: sp-tests-${{ matrix.game }}-x86_64
           if-no-files-found: ignore
           path: |
             ${{ env.OUT }}/report.txt

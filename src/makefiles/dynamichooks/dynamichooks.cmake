@@ -16,16 +16,22 @@
 include("makefiles/fetch.cmake")
 
 Set(SP_DYNAMICHOOKS_URL    https://github.com/pet0ruk/DynamicHooks)
-Set(SP_DYNAMICHOOKS_COMMIT ba9cb68b0730439faef8d54a2a02afeb82eb2053)
-Set(SP_DYNAMICHOOKS_SHA256 85bda931cb6973ae8f887981b4b564017ff563d6a747542b3f261509676d6492)
+Set(SP_DYNAMICHOOKS_COMMIT 1ca49731604b11fa0e038d7afdf99408567ec8e2)
+Set(SP_DYNAMICHOOKS_SHA256 0adb3c0d83306329aaf936c4fb313e1d349d384773f381c8635023f1806b5b81)
 
 SP_Fetch_Source(dynamichooks
     ${SP_DYNAMICHOOKS_URL}/archive/${SP_DYNAMICHOOKS_COMMIT}.tar.gz ${SP_DYNAMICHOOKS_SHA256})
 
 Set(DYNAMICHOOKS_TESTS OFF CACHE BOOL "" FORCE)
+# x86-64 builds also fetch safetyhook (pinned in DynamicHooks' cmake/safetyhook.cmake).
+Set(DYNAMICHOOKS_X86_64 ${SP_X86_64} CACHE BOOL "" FORCE)
 Add_Subdirectory(${dynamichooks_SOURCE_DIR} ${CMAKE_BINARY_DIR}/_deps/dynamichooks-build EXCLUDE_FROM_ALL)
 
-ForEach(_target asmjit DynamicHooks)
+Set(_dynamichooks_targets asmjit DynamicHooks)
+If(SP_X86_64)
+    List(APPEND _dynamichooks_targets safetyhook)
+EndIf()
+ForEach(_target ${_dynamichooks_targets})
     Set_Target_Properties(${_target} PROPERTIES POSITION_INDEPENDENT_CODE ON)
     If(MSVC)
         Set_Target_Properties(${_target} PROPERTIES

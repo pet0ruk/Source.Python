@@ -51,7 +51,7 @@ using namespace boost::python;
 class ICallingConventionWrapper: public ICallingConvention, public wrapper<ICallingConvention>
 {
 public:
-	ICallingConventionWrapper(object oArgTypes, DataType_t returnType, int iAlignment=4, Convention_t eDefaultConv=CONV_CUSTOM)
+	ICallingConventionWrapper(object oArgTypes, DataType_t returnType, int iAlignment=sizeof(void*), Convention_t eDefaultConv=CONV_CUSTOM)
 		:ICallingConvention(ObjectToDataTypeVector(oArgTypes), returnType, iAlignment)
 	{
 		if (eDefaultConv != CONV_CUSTOM) {
@@ -62,7 +62,7 @@ public:
 	// The Python object owns the convention. A hook keeps the Python object alive (see
 	// ShareCustomConvention), so the convention outlives every hook using it.
 	static boost::shared_ptr<ICallingConventionWrapper> __init__(
-		object oArgTypes, DataType_t returnType, int iAlignment=4, Convention_t eDefaultConv=CONV_CUSTOM)
+		object oArgTypes, DataType_t returnType, int iAlignment=sizeof(void*), Convention_t eDefaultConv=CONV_CUSTOM)
 	{
 		return boost::shared_ptr<ICallingConventionWrapper>(
 			new ICallingConventionWrapper(oArgTypes, returnType, iAlignment, eDefaultConv)

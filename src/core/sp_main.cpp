@@ -255,15 +255,19 @@ bool CSourcePython::Load(	CreateInterfaceFn interfaceFactory, CreateInterfaceFn 
 		return false;
 	}
 
-	// TODO: Don't hardcode the 64 bytes offset
-#ifdef ENGINE_LEFT4DEAD2
+	// TODO: Don't hardcode the offset of CMDLCache's notifier (the member
+	// CMDLCache::SetCacheNotify sets: "mov [rdi+0x68], rsi" in the 64-bit
+	// datacache_srv.so of the orangebox games, 0x40 in the 32-bit one).
+#if defined(PLATFORM_64BITS)
+	#define CACHE_NOTIFY_OFFSET 104
+#elif defined(ENGINE_LEFT4DEAD2)
 	#define CACHE_NOTIFY_OFFSET 68
 #else
 	#define CACHE_NOTIFY_OFFSET 64
 #endif
 
 	DevMsg(1, MSG_PREFIX "Retrieving the current cache notifier...\n");
-	m_pOldMDLCacheNotifier = *(IMDLCacheNotify **)(((unsigned long) modelcache) + CACHE_NOTIFY_OFFSET);
+	m_pOldMDLCacheNotifier = *(IMDLCacheNotify **)(((uintptr_t) modelcache) + CACHE_NOTIFY_OFFSET);
 
 	DevMsg(1, MSG_PREFIX "Setting the new cache notifier...\n");
 	modelcache->SetCacheNotify(this);

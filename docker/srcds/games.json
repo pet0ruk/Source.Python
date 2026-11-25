@@ -4,7 +4,8 @@
     "version_app_id": 440,
     "game_dir": "tf",
     "sp_engine": "orangebox",
-    "map": "ctf_2fort"
+    "map": "ctf_2fort",
+    "x86_64": true
   },
   "css": {
     "app_id": 232330,

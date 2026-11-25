@@ -61,6 +61,19 @@ needs a client to answer (`OnQueryCvarValueFinished`, menu selections).
 Known issues are reported as `XFAIL` (and `XPASS` once they start passing); there are none at
 the moment.
 
+## 64-bit servers
+
+`ARCH=x86_64` runs the game's 64-bit server (`srcds_run_64`, `bin/linux64`) with a 64-bit build
+(`ARCH=x86_64 docker/build/build.sh`), for the games marked `"x86_64": true` in
+`docker/srcds/games.json` (TF2 so far; CS:S, DoD:S and HL2DM ship the 64-bit engine but no 64-bit
+launcher). The test image then also gets the 64-bit `libcurl-gnutls` the engine needs, and the
+vtable check reads the 64-bit `server_srv.so`. The CI job is `test-x86_64`.
+
+```bash
+ARCH=x86_64 docker/build/build.sh tf2 out/tf2-x86_64
+ARCH=x86_64 docker/harness/run.sh tf2 out/tf2-x86_64/release
+```
+
 ## Windows
 
 `run-windows.sh` is the same run for the Windows server, in Git Bash on Windows (the CI job
@@ -90,11 +103,11 @@ stripped, so the symbol checks are skipped.
 
 ## Files
 
-- `run.sh` — runner; see the header for environment variables (`SRCDS_IMAGE`, `PULL`,
-  `GAMES_JSON`, `TIMEOUT`, `OVERLAY_REPO`, `NO_UPDATE`)
+- `run.sh` — runner; see the header for environment variables (`ARCH`, `SRCDS_IMAGE`, `PULL`,
+  `GAMES_JSON`, `TIMEOUT`, `OVERLAY_REPO`, `NO_UPDATE`, `EXTRA_ADDONS`)
 - `Dockerfile` — the test image on top of `srcds:<game>`
 - `plugin/sp_harness/sp_harness.py` — the in-server checks
-- `tools/vtdump.py` — vtable dump / gamedata check for 32-bit ELF binaries
+- `tools/vtdump.py` — vtable dump / gamedata check for 32-bit and x86-64 ELF binaries
   (`vtdump.py <server_srv.so> dump <Class>`)
 - `run-windows.sh` — the Windows runner (see above)
 - `tools/oci_extract.py` — extract a public image's files without Docker
