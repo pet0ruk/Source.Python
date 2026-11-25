@@ -519,10 +519,11 @@ def check_weapon_scripts():
     if SOURCE_ENGINE != 'orangebox':
         raise Skip('WeaponInfo layout is only checked for orangebox games')
     from weapons.scripts import weapon_scripts
-    infos = list(weapon_scripts)
+    # CS:S's database also has empty entries
+    infos = [info for info in weapon_scripts if info.class_name]
     expect(len(infos) >= 5, f'only {len(infos)} weapon scripts')
     names = [info.class_name for info in infos]
-    expect(all(name and name.isprintable() for name in names), names)
+    expect(all(name.isprintable() for name in names), names)
     expect(weapon_scripts[names[0]].class_name == names[0], 'lookup by class name')
     expect(all(info.is_script_parsed for info in infos), 'unparsed scripts')
     models = [(info.view_model, info.world_model) for info in infos if info.world_model]
@@ -546,6 +547,11 @@ def check_weapon_scripts():
              'crosshair_icon', 'autoaim_icon', 'zoomed_crosshair_icon', 'zommed_autoaim_icon')
     expect(all(getattr(getattr(info, icon), 'address', 0) == 0
                for info in infos for icon in icons), 'icons set')
+    if GAME_NAME == 'cstrike':
+        # CCSWeaponInfo's members (weapons/scripts/orangebox/cstrike/WeaponInfo.ini)
+        ak47 = weapon_scripts['weapon_ak47']
+        expect((ak47.price, ak47.damage, ak47.maximum_player_speed) == (2500, 36, 221),
+               (ak47.price, ak47.damage, ak47.maximum_player_speed))
     return {'scripts': len(infos),
             'melee': sum(info.is_melee for info in infos),
             'right_handed': sum(info.is_built_right_handed for info in infos)}
