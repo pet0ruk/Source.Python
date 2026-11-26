@@ -40,6 +40,9 @@ on:
       - .github/workflows/release.yml
       - docker/release/**
       - docker/build/**
+      # what goes into both platforms' trees, which packaging requires to be identical
+      - src/makefiles/python-runtime.cmake
+      - addons/source-python/packages/site-packages/**
 
 permissions:
   contents: write
