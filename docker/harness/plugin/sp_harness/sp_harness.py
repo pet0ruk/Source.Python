@@ -401,6 +401,7 @@ def phase_static():
     fire_custom_event(1, 'before')
     check('engines.precache_model', check_precache)
     check('effects.temp_entity_properties', check_temp_entity)
+    check('effects.temp_entity_aliases', check_temp_entity_aliases)
 
     Delay(0.5, _count_delay)
     repeat = Repeat(_count_repeat)
@@ -1214,6 +1215,46 @@ def check_temp_entity():
     expect(tuple(beam.start_point) == (1, 2, 3), tuple(beam.start_point))
     expect(tuple(beam.end_point) == (4, 5, 6), tuple(beam.end_point))
     beam.create(RecipientFilter())
+
+
+def check_temp_entity_aliases():
+    """Every alias in the effects data of every temp entity the server has names one of its
+    send props (or, for a section such as ``color``, aliases or props), and a plain alias can
+    be read and written back. Nothing else uses most of them, so a typo in the data shows up
+    only when a plugin uses that alias."""
+    from configobj import Section
+    from effects import _first_temp_entity
+    from effects.base import TempEntity
+    problems, checked = [], 0
+    temp_entity = _first_temp_entity
+    while temp_entity:
+        name = temp_entity.name
+        temp_entity = temp_entity.next
+        effect = TempEntity(name)
+        template = effect.template
+        for alias, data in template.aliases.items():
+            checked += 1
+            if isinstance(data, Section):
+                names = data['name'] if isinstance(data['name'], list) else [data['name']]
+                missing = [n for n in names
+                           if n not in template.aliases and n not in template.properties]
+                if missing:
+                    problems.append(f'{name}.{alias}: no {missing}')
+                continue
+            if data not in template.properties:
+                problems.append(f'{name}.{alias}: no send prop {data!r}')
+                continue
+            try:
+                value = getattr(effect, alias)
+                if isinstance(value, Vector):
+                    # a view of the temp entity's own memory: write back a copy
+                    value = Vector(*value)
+                setattr(effect, alias, value)
+            except Exception as error:
+                problems.append(f'{name}.{alias}: {error!r}')
+    expect(checked, 'no temp entity aliases')
+    expect(not problems, f'{len(problems)} problems: ' + '; '.join(problems))
+    return f'{checked} aliases'
 
 
 def _count_delay():
